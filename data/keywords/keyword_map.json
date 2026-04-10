@@ -1,0 +1,7 @@
+{
+    "9702": {
+        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "slope", "gradient", "vector"],
+        "Dynamics": ["force", "newton", "momentum", "impulse", "mass", "friction", "tension", "weight"],
+        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt"]
+    }
+}
