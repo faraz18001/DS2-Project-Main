@@ -1,0 +1,227 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% ── Code Listings ────────────────────────────────────────────────────────────
+\definecolor{codebg}{gray}{0.96}
+\definecolor{codefg}{gray}{0.1}
+\definecolor{rulecol}{gray}{0.75}
+
+\lstset{
+  backgroundcolor = \color{codebg},
+  basicstyle      = \ttfamily\small\color{codefg},
+  breaklines      = true,
+  frame           = single,
+  framerule       = 0.4pt,
+  rulecolor       = \color{rulecol},
+  xleftmargin     = 6pt,
+  xrightmargin    = 6pt,
+  aboveskip       = 8pt,
+  belowskip       = 8pt,
+  showstringspaces= false,
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% Title formatting
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}[runin]{\bfseries}{}{0em}{}[.\quad]
+
+\title{\textbf{CS201: Data Structures II \\ Project Proposal}}
+\date{March 28, 2026}
+\author{
+    \textbf{Project Title:} Inverted Index-Based Past Paper Worksheet Generator \\
+    \\ \textbf{Team Members:} \\
+    1. Widad Khan - wk09758 \\
+    2. Ayesha Imran - [Student ID] \\
+    3. Muhammad Murtaza - mm09736 \\
+    4. Syed Faraz Ahmed Shah - sf10162 \\
+    \\ \textbf{Instructor:} Faisal Alvi
+}
+
+\begin{document}
+\maketitle
+
+\section{Abstract}
+This project presents an Inverted Index-Based Past Paper Worksheet Generator designed for O-Level and A-Level students. Existing past paper platforms allow students to access PDFs by year, but very few support topic-wise question filtering, and virtually none provide annotatable worksheets that students can work on directly. Our system parses past paper PDFs, extracts individual questions along with their bounding-box coordinates, and uses a custom inverted index to map composite topic keys to question metadata --- enabling fast multi-criteria filtering by subject, topic, paper type, and year range. A 0/1 Knapsack dynamic programming algorithm selects the optimal subset of retrieved questions to meet a user-specified target mark count. The filtered questions are compiled into a structured A4 PDF worksheet using vector-preserving stamping, ensuring diagrams and equations render crisply. This project demonstrates how a data structure traditionally associated with search engines can be directly applied to educational tooling.
+
+\section{Introduction}
+Students preparing for O-Level and A-Level examinations routinely practice from past papers. The standard workflow - downloading a full PDF, manually scanning for relevant questions, and filling in the answers in a separate document - is inefficient and wasteful. While some websites offer topic-filtered question banks, they do not produce student-ready worksheets, do not support mark-based selection, and do not preserve the vector quality of scientific diagrams.
+
+The core challenge is an information retrieval problem: given a large corpus of questions spread across dozens of PDFs spanning multiple years, how do we efficiently retrieve all questions belonging to a given topic? This is precisely the problem solved by an inverted index. Rather than scanning every question for a match at query time, the inverted index pre-computes a mapping from each topic key to the list of matching question records, reducing retrieval to a direct $O(1)$ lookup. The mark-based selection problem is then solved using the 0/1 Knapsack algorithm, which guarantees an optimal question subset within the mark constraint.
+
+This project is directly relevant to the study of data structures because it applies the inverted index in a real-world retrieval context, complemented by supporting structures such as hash maps for question storage and trees for topic hierarchy representation.
+
+\section{Objectives}
+\begin{enumerate}
+    \item Parse past paper PDFs and extract individual questions with associated metadata: topic, subject code, paper type, year, marks, page number, and bounding-box coordinates.
+    \item Design and implement a custom inverted index mapping composite topic keys to postings lists of question records, supporting insert, query, union, intersection, and year-range filter operations.
+    \item Implement multi-criteria filtering (topic, year range, paper type) using set union and intersection on inverted index postings lists.
+    \item Implement a 0/1 Knapsack dynamic programming algorithm that selects the optimal subset of retrieved questions to meet a user-specified target mark count.
+    \item Generate a clean, structured A4 PDF worksheet using vector-preserving bounding-box stamping via PyMuPDF, retaining full diagram and equation quality.
+    \item Provide a simple web-based user interface built with Flask allowing users to select subject, topics, paper type, year range, and target marks.
+    \item Quantitatively compare inverted index query performance against a naive linear scan to demonstrate the practical value of the data structure.
+\end{enumerate}
+
+\section{Methodology}
+
+\subsection*{Core Data Structure: The Inverted Index}
+
+The inverted index reverses the natural storage direction: instead of \textit{question $\to$ its topics}, it stores \textit{topic $\to$ all questions that belong to it}, reducing a topic query from $O(n)$ to a direct $O(1)$ lookup.
+
+A key design decision is the use of \textbf{composite keys} rather than flat topic strings. Each key encodes subject, topic, and paper type simultaneously:
+
+\begin{lstlisting}
+Key format:  {SubjectCode}_{Topic}_{PaperType}
+
+Examples:    "9702_Kinematics_P2"     (A-Level Physics, Paper 2)
+             "4024_Algebra_P1"        (O-Level Mathematics, Paper 1)
+\end{lstlisting}
+
+This means a single flat index handles all subjects and paper types without nested structure. Paper type is filtered at key construction, not post-retrieval.
+
+Each key maps to a postings list of question records:
+
+\begin{lstlisting}[language={}]
+{
+  "id":         "q001",
+  "subject":    "9702",
+  "topic":      "Kinematics",
+  "paper_type": "P2",
+  "year":       2022,
+  "marks":      6,
+  "pdf":        "papers/9702/2022/p2.pdf",
+  "page":       3,
+  "bbox":       [40, 80, 550, 450]
+}
+\end{lstlisting}
+
+The \texttt{bbox} field stores \texttt{[x0, y0, x1, y1]} pixel coordinates of the question on its source page, enabling direct vector-region extraction without any text parsing.
+
+The \texttt{InvertedIndex} class exposes the following operations, all implemented from scratch:
+
+\begin{itemize}
+    \item \texttt{insert(key, record)} --- appends a record to the postings list. $O(1)$ amortized.
+    \item \texttt{query(key)} --- returns the full postings list. $O(1)$.
+    \item \texttt{union(keys)} --- merges postings lists, deduplicating by question ID. $O(k + n)$.
+    \item \texttt{intersect(keys)} --- returns records present in all lists via Python set intersection. $O(k \times n)$.
+    \item \texttt{filter(results, year\_from, year\_to)} --- post-lookup year range filter. $O(n)$.
+    \item \texttt{save(path)} / \texttt{load(path)} --- JSON serialization so the index persists across runs without re-parsing PDFs.
+\end{itemize}
+
+A plain dictionary only supports exact single-key lookups. The inverted index differs in that values are dynamic postings lists, union and intersection are first-class operations, and composite keys encode multi-dimensional filtering at the structure level.
+
+\subsection*{System Pipeline}
+The system operates in four stages: ingestion, indexing, query and selection, and output generation.
+
+\vspace{6pt}
+\begin{tabularx}{\textwidth}{@{} C{1.1cm} L{2.8cm} X @{}}
+  \toprule
+  \textbf{Stage} & \textbf{Name} & \textbf{Description} \\
+  \midrule
+  1 & PDF Ingestion &
+    PyMuPDF processes each past paper PDF. Per question: subject, topic tag, paper type, year, marks, source path, page number, and bbox coordinates are recorded. Topic tagging uses a keyword-to-topic mapping derived from Cambridge syllabuses. \\[4pt]
+  2 & Index Construction &
+    All question records are iterated and \texttt{insert(composite\_key, record)} is called per topic tag. The index is serialized to \texttt{index.json} and loaded on subsequent runs --- no re-parsing. \\[4pt]
+  3 & Query, Filter \& Selection &
+    User specifies subject, topics, paper type, year range, and target marks. Backend constructs composite keys, runs \texttt{union()} or \texttt{intersect()}, applies year filter, then passes the candidate pool to the Knapsack algorithm. \\[4pt]
+  4 & Worksheet Generation &
+    Knapsack returns the optimal subset. PyMuPDF crops each question by bbox and stamps it onto a blank A4 canvas using \texttt{show\_pdf\_page()}. A Y-cursor tracks vertical position and opens new pages on overflow. \\
+  \bottomrule
+\end{tabularx}
+\vspace{6pt}
+
+\subsection*{Mark Selection: 0/1 Knapsack}
+After retrieval, the system selects a subset of questions whose marks sum to (or approach) the user's target --- a classic 0/1 Knapsack instance solved with bottom-up DP:
+
+\begin{lstlisting}
+dp[m] = list of questions summing to exactly m marks
+
+For each question q with marks m:
+  For total from target down to m:
+    if dp[total - m] is not None and dp[total] is None:
+      dp[total] = dp[total - m] + [q]
+
+Return dp[target] if exact match found,
+otherwise return dp[t] for largest t < target.
+\end{lstlisting}
+
+Time complexity is $O(n \times W)$ where $n$ is candidates and $W$ is the target mark value. A pre-sort step interleaves questions by year before the DP pass to ensure diversity across past papers.
+
+\subsection*{PDF Generation}
+Text extraction destroys scientific diagrams. Instead, PyMuPDF's \texttt{show\_pdf\_page()} copies raw vector commands from the source page region directly onto a blank A4 canvas. This preserves full vector quality, text selectability, and annotation compatibility. Each question is labelled (Q1, Q2...) with a source footer (e.g., \texttt{[2022 P2 Q4 --- Kinematics]}) and a blank answer space scaled proportionally to marks.
+
+\begin{itemize}
+    \item \textbf{Data structures used:} Inverted index (\texttt{dict} of \texttt{list}), hash map for question storage (\texttt{dict[str, dict]}), n-ary tree for topic hierarchy, DP table (1D list of size target\_marks + 1).
+    \item \textbf{Algorithms:} Regex-based question segmentation, keyword frequency scoring for topic tagging, set union/intersection for multi-filter queries, 0/1 Knapsack DP for mark selection, Y-cursor layout for pagination.
+    \item \textbf{Tools and technologies:} Python 3.x, PyMuPDF / \texttt{fitz} (PDF parsing and vector stamping), Flask (web interface), JSON (keyword map and index persistence).
+    \item \textbf{Expected challenges:} Past paper PDFs vary significantly in formatting across years and syllabuses, making robust question boundary detection non-trivial. Multi-part sub-questions require handling of nested structure. Ensuring the Knapsack returns a close match when no exact mark combination exists. Bounding-box accuracy depends on consistent PDF structure; manual verification may be needed for some papers.
+\end{itemize}
+
+\section{Expected Outcomes}
+By the end of the project, we expect to deliver a working Python web application that accepts filter parameters and outputs a formatted worksheet PDF. Specifically:
+
+\begin{itemize}
+    \item A pre-built question bank covering at least one O/A Level subject spanning five or more years of past papers.
+    \item A fully implemented \texttt{InvertedIndex} class with composite keys, postings list union/intersection, year filtering, and JSON persistence.
+    \item An inverted index supporting sub-millisecond topic queries on the full question bank.
+    \item A 0/1 Knapsack implementation with a quantitative demonstration of optimality.
+    \item Generated worksheets with vector-quality diagrams, labelled questions, source attribution footers, proportional answer spaces, and a worksheet header.
+    \item A quantitative comparison of inverted index query time versus naive linear scan, demonstrating the practical value of the data structure.
+    \item An annotatable PDF output compatible with standard PDF readers.
+\end{itemize}
+
+\section{Team Work Distribution}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{} L{3.2cm} L{3cm} X @{}}
+  \toprule
+  \textbf{Member} & \textbf{Role} & \textbf{Responsibilities} \\
+  \midrule
+  Widad Khan & Data \& Ingestion &
+    PDF parsing using PyMuPDF, question boundary detection, topic tagging, bounding-box extraction, production of \texttt{question\_db.json}. \\[4pt]
+  Ayesha Imran & Core Data Structure &
+    \texttt{InvertedIndex} class --- insert, query, union, intersect, filter, save/load. Unit testing. \\[4pt]
+  Muhammad Murtaza & Algorithms \& PDF Engine &
+    0/1 Knapsack DP, PyMuPDF A4 stamping with Y-cursor pagination, worksheet header/footer. \\[4pt]
+  Syed Faraz Ahmed Shah & Frontend \& Integration &
+    Flask backend routes, HTML user interface, end-to-end pipeline integration. \\
+  \bottomrule
+\end{tabularx}
+
+\section{References}
+
+\begin{itemize}
+
+\item Baeza-Yates, R., \& Ribeiro-Neto, B. (2011).
+\textit{Modern Information Retrieval}. ACM Press. \\
+Foundational reference for inverted index design and postings list operations.
+
+\item Manning, C. D., Raghavan, P., \& Sch\"utze, H. (2008).
+\textit{Introduction to Information Retrieval}. Cambridge University Press. \\
+Chapter 1 covers the construction of inverted indexes in detail.
+
+\item Cormen, T. H., Leiserson, C. E., Rivest, R. L., \& Stein, C. (2022).
+\textit{Introduction to Algorithms} (4th ed.). MIT Press. \\
+Chapter 16 covers the 0/1 Knapsack and dynamic programming.
+
+\item \textit{PyMuPDF Documentation}. \\
+\url{https://pymupdf.readthedocs.io} \\
+Reference for PDF parsing and \texttt{show\_pdf\_page()} vector stamping.
+
+\item \textit{Flask Documentation}. \\
+\url{https://flask.palletsprojects.com} \\
+Reference for the backend of the web interface.
+
+\end{itemize}
+
+\end{document}

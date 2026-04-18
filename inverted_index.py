@@ -19,8 +19,13 @@ class InvertedIndex:
     """
 
     def __init__(self):
-        # Internal dict: key (str) → list of question record dicts
-        pass
+        self.main_index={}
+        self.question_store={}
+
+
+
+
+        
 
     # ── Core Operations ──────────────────────────────────────────
 
@@ -31,7 +36,12 @@ class InvertedIndex:
         Skips duplicates (same question id already in that list).
         O(1) amortized.
         """
-        pass
+        question_id=record['id']
+        self.question_store[question_id]=record
+        if key not in self.main_index:
+            self.main_index[key]=[]
+        self.main_index[key].append(question_id)
+        
 
     def query(self, key):
         """
@@ -39,7 +49,17 @@ class InvertedIndex:
         Returns empty list if key not found.
         O(1) lookup.
         """
-        pass
+        full_posting_list=[]
+        if key in self.main_index:
+            for question_id in self.main_index[key]:
+                full_posting_list.append(self.question_store[question_id])
+            return full_posting_list
+
+
+        else:
+            return []
+        
+                    
 
     # ── Set Operations ───────────────────────────────────────────
 
@@ -50,7 +70,16 @@ class InvertedIndex:
         Use case: "Give me all Kinematics OR Dynamics questions."
         O(k + n) where k = number of keys, n = total postings.
         """
-        pass
+        result_question_id=set()
+        for key in keys:
+            if key in self.main_index:
+                result_question_id.update(self.main_index[key])
+        
+        full_posting_list=[]
+        for question_id in result_question_id:
+            full_posting_list.append(self.question_store[question_id])
+        return full_posting_list
+        
 
     def intersect(self, keys):
         """
@@ -58,7 +87,24 @@ class InvertedIndex:
         Use case: "Give me questions tagged BOTH Kinematics AND Vectors."
         O(k × n) via set intersection on question ids.
         """
-        pass
+        if self.keys is None:
+            return []
+
+        if not keys or len(keys)==0:
+            return []
+            for key in keys:
+                if key not in self.main_index:
+                    return []
+            result_ids=set(self.main_index[keys[0]])
+            for key in keys[1:]:
+                result_ids.intersection_update(self.main_index[key])
+        full_posting_list=[]
+        for question_id in result_question_id:
+            full_posting_list.append(self.question_store[question_id])
+        return full_posting_list
+        
+
+
 
     # ── Filtering ────────────────────────────────────────────────
 
