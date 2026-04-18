@@ -19,13 +19,8 @@ class InvertedIndex:
     """
 
     def __init__(self):
-        self.main_index={}
-        self.question_store={}
-
-
-
-
-        
+        self.main_index = {}
+        self.question_store = {}
 
     # ── Core Operations ──────────────────────────────────────────
 
@@ -36,12 +31,11 @@ class InvertedIndex:
         Skips duplicates (same question id already in that list).
         O(1) amortized.
         """
-        question_id=record['id']
-        self.question_store[question_id]=record
+        question_id = record["id"]
+        self.question_store[question_id] = record
         if key not in self.main_index:
-            self.main_index[key]=[]
+            self.main_index[key] = []
         self.main_index[key].append(question_id)
-        
 
     def query(self, key):
         """
@@ -49,17 +43,14 @@ class InvertedIndex:
         Returns empty list if key not found.
         O(1) lookup.
         """
-        full_posting_list=[]
+        full_posting_list = []
         if key in self.main_index:
             for question_id in self.main_index[key]:
                 full_posting_list.append(self.question_store[question_id])
             return full_posting_list
 
-
         else:
             return []
-        
-                    
 
     # ── Set Operations ───────────────────────────────────────────
 
@@ -70,16 +61,15 @@ class InvertedIndex:
         Use case: "Give me all Kinematics OR Dynamics questions."
         O(k + n) where k = number of keys, n = total postings.
         """
-        result_question_id=set()
+        result_question_id = set()
         for key in keys:
             if key in self.main_index:
                 result_question_id.update(self.main_index[key])
-        
-        full_posting_list=[]
+
+        full_posting_list = []
         for question_id in result_question_id:
             full_posting_list.append(self.question_store[question_id])
         return full_posting_list
-        
 
     def intersect(self, keys):
         """
@@ -87,24 +77,21 @@ class InvertedIndex:
         Use case: "Give me questions tagged BOTH Kinematics AND Vectors."
         O(k × n) via set intersection on question ids.
         """
-        if self.keys is None:
+        if keys is None or len(keys) == 0:
             return []
 
-        if not keys or len(keys)==0:
-            return []
-            for key in keys:
-                if key not in self.main_index:
-                    return []
-            result_ids=set(self.main_index[keys[0]])
-            for key in keys[1:]:
-                result_ids.intersection_update(self.main_index[key])
-        full_posting_list=[]
-        for question_id in result_question_id:
+        for key in keys:
+            if key not in self.main_index:
+                return []
+                
+        result_ids = set(self.main_index[keys[0]])
+        for key in keys[1:]:
+            result_ids.intersection_update(self.main_index[key])
+            
+        full_posting_list = []
+        for question_id in result_ids:
             full_posting_list.append(self.question_store[question_id])
         return full_posting_list
-        
-
-
 
     # ── Filtering ────────────────────────────────────────────────
 
@@ -114,7 +101,11 @@ class InvertedIndex:
         Applied after query/union/intersect as a post-lookup step.
         O(n) linear scan.
         """
-        pass
+        filtered_results = []
+        for record in results:
+            if record["year"] >= year_from and record["year"] <= year_to:
+                filtered_results.append(record)
+        return filtered_results
 
     # ── Persistence ──────────────────────────────────────────────
 
@@ -123,25 +114,20 @@ class InvertedIndex:
         Serialize the entire index to a JSON file at `path`.
         Allows reuse across runs without re-parsing PDFs.
         """
-        pass
+        data = {}
+        data["main_index"] = self.main_index
+        data["question_store"] = self.question_store
+        
+        with open(path, "w") as file:
+            json.dump(data, file)
 
     def load(self, path):
         """
         Deserialize the index from a JSON file at `path`.
         Replaces the current in-memory index with loaded data.
         """
-        pass
-
-    # ── Utility ──────────────────────────────────────────────────
-
-    def keys(self):
-        """Return all composite keys currently in the index."""
-        pass
-
-    def __len__(self):
-        """Return total number of keys in the index."""
-        pass
-
-    def __repr__(self):
-        """Display summary: number of keys and total postings count."""
-        pass
+        with open(path, "r") as file:
+            data = json.load(file)
+            
+        self.main_index = data["main_index"]
+        self.question_store = data["question_store"]
