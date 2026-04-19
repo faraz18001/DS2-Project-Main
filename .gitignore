@@ -20,3 +20,4 @@ data/question_db.json
 # Tool-specific
 .gemini/
 .DS_Store
+data/
