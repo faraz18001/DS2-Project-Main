@@ -1,12 +1,26 @@
 """
 pdf_parser.py — PDF ingestion and question extraction.
 Uses pymupdf4llm for robust structure detection and text extraction.
-Images embedded in questions are extracted and their paths stored per record.
+Images embedded in questions are extracted and filtered to keep only
+question diagrams (graphs, circuits, experiment setups, etc.).
+Tiny decorative images, text-line renders, and MCQ label strips are
+automatically discarded based on pixel dimensions.
 """
 
 import pymupdf4llm
 import re
 import os
+import struct
+
+# ---------------------------------------------------------------------------
+# Image-filtering thresholds – tweak these if legitimate diagrams are
+# being dropped or junk images are sneaking through.
+# ---------------------------------------------------------------------------
+MIN_IMG_WIDTH  = 40     # pixels – reject images narrower than this
+MIN_IMG_HEIGHT = 25     # pixels – reject images shorter than this
+MIN_IMG_AREA   = 2500   # sq px  – reject overall tiny images
+MAX_ASPECT     = 12.0   # w/h    – reject extremely thin horizontal strips
+
 
 def parse_paper(pdf_path, subject_code, paper_type, year):
     """
@@ -53,12 +67,11 @@ def parse_paper(pdf_path, subject_code, paper_type, year):
         marks = extract_marks(q_text)
 
         # Extract image paths referenced in this question's markdown block
-        # Paths in markdown are relative to CWD (where the script is run from)
-        images = extract_image_paths(q_text)
+        images = extract_image_paths(q_text, image_output_dir)
 
         q_id = f"{subject_code}_{year}_{paper_type}_q{q_num}"
 
-        record = {
+        record = { 
             "id": q_id,
             "subject": subject_code,
             "topic": "Unknown",
@@ -78,27 +91,104 @@ def parse_paper(pdf_path, subject_code, paper_type, year):
     return results
 
 
-def extract_image_paths(text):
+# ---------------------------------------------------------------------------
+# Image helpers
+# ---------------------------------------------------------------------------
+
+def _get_png_dimensions(image_path):
+    """
+    Read width and height from a PNG file header (bytes 16-23 of IHDR chunk).
+    Returns (width, height) or (None, None) on failure.
+    """
+    try:
+        with open(image_path, 'rb') as f:
+            header = f.read(24)
+            if len(header) >= 24 and header[:8] == b'\x89PNG\r\n\x1a\n':
+                width  = struct.unpack('>I', header[16:20])[0]
+                height = struct.unpack('>I', header[20:24])[0]
+                return width, height
+    except (IOError, struct.error):
+        pass
+    return None, None
+
+
+def _is_diagram_image(image_path):
+    """
+    Return True if the image at *image_path* looks like a real question
+    diagram rather than a tiny icon, a text-line render, or an MCQ label
+    strip.  The check is purely dimension-based and intentionally lenient
+    so that genuine but small diagrams are not accidentally dropped.
+    """
+    width, height = _get_png_dimensions(image_path)
+    if width is None or height is None:
+        # Can't read dimensions — keep the image to be safe
+        return True
+
+    # Too narrow or too short → decorative / icon
+    if width < MIN_IMG_WIDTH or height < MIN_IMG_HEIGHT:
+        return False
+
+    # Overall area too small
+    if width * height < MIN_IMG_AREA:
+        return False
+
+    # Extremely wide-and-thin → text rendered as an image strip
+    aspect = width / max(height, 1)
+    if aspect > MAX_ASPECT:
+        return False
+
+    return True
+
+
+def extract_image_paths(text, image_output_dir):
     """
     Parse all Markdown image references from a question text block and
-    return a list of absolute file paths to the extracted images.
+    return a list of absolute file paths to the extracted *diagram* images.
 
-    pymupdf4llm writes image paths relative to the current working directory
-    (i.e. wherever you run the script from).  We resolve them to absolute
-    paths from CWD so they are portable regardless of how the module is imported.
+    pymupdf4llm writes images with paths like:
+        ![](relative/path/to/image.png)
+    or
+        ![](absolute/path/to/image.png)
+
+    We resolve each path, check that the file exists, apply the diagram
+    filter, and return only images that pass.
     """
-    cwd = os.getcwd()
-
     # Match standard Markdown image syntax: ![alt text](path)
     pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
     matches = re.findall(pattern, text)
 
     abs_paths = []
     for _alt, img_path in matches:
-        if not os.path.isabs(img_path):
-            img_path = os.path.join(cwd, img_path)
-        img_path = os.path.normpath(img_path)
-        abs_paths.append(img_path)
+        # pymupdf4llm may emit a path relative to CWD (including the
+        # image_output_dir prefix) or just a bare filename.  Try to
+        # resolve correctly without doubling the directory.
+        resolved = None
+
+        # 1. Try as-is (relative to CWD or absolute)
+        if os.path.isfile(img_path):
+            resolved = os.path.abspath(img_path)
+
+        # 2. Try as a bare filename inside image_output_dir
+        if resolved is None:
+            candidate = os.path.join(image_output_dir, os.path.basename(img_path))
+            if os.path.isfile(candidate):
+                resolved = os.path.abspath(candidate)
+
+        # 3. Try joining full path with image_output_dir (legacy fallback)
+        if resolved is None:
+            candidate = os.path.normpath(os.path.join(image_output_dir, img_path))
+            if os.path.isfile(candidate):
+                resolved = os.path.abspath(candidate)
+
+        if resolved is None:
+            # File not found at all – skip silently
+            continue
+
+        # Apply diagram filter – skip tiny / text-line / decorative images
+        if not _is_diagram_image(resolved):
+            continue
+
+        abs_paths.append(resolved)
 
     return abs_paths
 
