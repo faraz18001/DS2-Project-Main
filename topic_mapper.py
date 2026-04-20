@@ -7,6 +7,7 @@ syllabuses and stored as JSON files.
 """
 
 import json
+import re
 
 
 def load_keyword_map(path):
@@ -28,7 +29,8 @@ def load_keyword_map(path):
     Returns:
         dict mapping subject_code → topic → list of keywords.
     """
-    pass
+    with open(path, "r") as f:
+        return json.load(f)
 
 
 def tag_question(question_text, subject_code, keyword_map):
@@ -50,7 +52,50 @@ def tag_question(question_text, subject_code, keyword_map):
     Returns:
         list of str, topic labels (usually 1, sometimes 2 for cross-topic).
     """
-    pass
+    if subject_code not in keyword_map:
+        return ["Uncategorized"]
+
+    # Normalize: lowercase, strip markdown formatting and punctuation
+    normalized = question_text.lower()
+    normalized = re.sub(r'[*_#\[\]()!]', ' ', normalized)   # strip markdown
+    normalized = re.sub(r'[^a-z0-9\s-]', ' ', normalized)   # keep only alphanum
+    words = normalized.split()
+
+    topics_for_subject = keyword_map[subject_code]
+
+    # Score each topic by counting keyword hits
+    scores = {}
+    for topic, keywords in topics_for_subject.items():
+        count = 0
+        for keyword in keywords:
+            # Keywords can be multi-word (e.g. "specific heat"), so check
+            # against the full normalized text for those, and against the
+            # word list for single-word keywords.
+            if ' ' in keyword:
+                # Multi-word keyword: search in full text
+                count += normalized.count(keyword.lower())
+            else:
+                # Single-word keyword: count occurrences in word list
+                kw_lower = keyword.lower()
+                count += words.count(kw_lower)
+        if count > 0:
+            scores[topic] = count
+
+    if not scores:
+        return ["Uncategorized"]
+
+    # Sort topics by score descending
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+    # Always include the top topic
+    best_score = ranked[0][1]
+    result = [ranked[0][0]]
+
+    # Include a second topic only if it scores at least 60% of the best
+    if len(ranked) > 1 and ranked[1][1] >= best_score * 0.6:
+        result.append(ranked[1][0])
+
+    return result
 
 
 def build_composite_keys(subject_code, topics, paper_type):
@@ -68,5 +113,7 @@ def build_composite_keys(subject_code, topics, paper_type):
     Returns:
         list of composite key strings.
     """
-    pass
-c
+    keys = []
+    for topic in topics:
+        keys.append(f"{subject_code}_{topic}_{paper_type}")
+    return keys

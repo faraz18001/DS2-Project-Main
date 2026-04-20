@@ -1,4 +1,15 @@
 {
+    "5054": {
+        "Measurement": ["measure", "unit", "prefix", "error", "accuracy", "precision", "instrument", "reading", "scale", "uncertainty", "vernier", "micrometer", "caliper"],
+        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "distance", "time", "gradient", "slope", "graph", "motion", "deceleration", "free fall", "terminal"],
+        "Forces": ["force", "newton", "weight", "friction", "tension", "moment", "torque", "equilibrium", "pivot", "resultant", "balanced", "unbalanced", "spring", "hooke", "extension", "load", "pressure", "density"],
+        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt", "conservation", "energy", "gravitational potential"],
+        "Thermal Physics": ["temperature", "heat", "thermal", "conduction", "convection", "radiation", "specific heat", "boiling", "melting", "evaporation", "latent", "expansion", "thermometer", "celsius", "kelvin"],
+        "Waves": ["wave", "frequency", "wavelength", "amplitude", "oscillation", "sound", "light", "diffraction", "refraction", "reflection", "lens", "mirror", "prism", "spectrum", "electromagnetic", "transverse", "longitudinal", "period"],
+        "Electricity": ["current", "voltage", "resistance", "circuit", "ohm", "series", "parallel", "cell", "battery", "wire", "resistor", "ammeter", "voltmeter", "diode", "thermistor", "ldr", "potential divider", "electromotive"],
+        "Magnetism": ["magnetic", "field", "electromagnet", "motor", "generator", "induced", "solenoid", "compass", "relay", "transformer", "induction", "alternating", "direct current"],
+        "Nuclear Physics": ["nucleus", "atom", "proton", "neutron", "electron", "radioactive", "decay", "half-life", "alpha", "beta", "gamma", "isotope", "nucleon", "atomic number", "mass number", "fission", "fusion"]
+    },
     "9702": {
         "Kinematics": ["velocity", "acceleration", "displacement", "speed", "slope", "gradient", "vector"],
         "Dynamics": ["force", "newton", "momentum", "impulse", "mass", "friction", "tension", "weight"],

@@ -46,9 +46,11 @@ def parse_paper(pdf_path, subject_code, paper_type, year):
         image_path=image_output_dir,
     )
 
-    # Split by potential question number pattern:
-    # A line starting with bold number: **1** or bulleted bold: - **1**
-    raw_questions = re.split(r'\n(?:-\s*)?\*\*(\d+)\*\*\s', md)
+    # Split by question number pattern found in Cambridge past papers.
+    # Questions begin with either '- N Text' or 'N Text' (inconsistent across papers),
+    # where N is 1–2 digits and the question body starts with an uppercase letter.
+    # The lookahead (?=[A-Z]) prevents false splits inside sentences like "Fig. 2.1".
+    raw_questions = re.split(r'\n(?:- )?(\d{1,2}) (?=[A-Z])', md)
 
     # The first part is header, so skip it.
     # raw_questions will be [header, q1_num, q1_text, q2_num, q2_text, ...]
