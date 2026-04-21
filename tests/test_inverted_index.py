@@ -3,7 +3,7 @@ test_inverted_index.py — Unit tests for the InvertedIndex class.
 """
 
 import unittest
-from backend.inverted_index import InvertedIndex
+from inverted_index import InvertedIndex
 
 class TestInvertedIndex(unittest.TestCase):
     def setUp(self):

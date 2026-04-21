@@ -3,7 +3,7 @@ test_knapsack.py — Unit tests for the 0/1 Knapsack selection logic.
 """
 
 import unittest
-from backend.knapsack import select_questions
+from knapsack import select_questions
 
 class TestKnapsack(unittest.TestCase):
     def test_exact_match(self):

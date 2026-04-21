@@ -16,7 +16,7 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     """
-    Main page: Show the worksheet generation form.
+    Main page: Show the worksheet generation form.te it in → fully editable boxes, arrows, text, everything.
     Pass list of subjects from config to the template.
     """
     return render_template("index.html", subjects=SUBJECTS)

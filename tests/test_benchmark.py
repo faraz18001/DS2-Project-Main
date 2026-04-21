@@ -6,7 +6,7 @@ Compares Inverted Index query time against a naive linear scan.
 
 import time
 import unittest
-from backend.inverted_index import InvertedIndex
+from inverted_index import InvertedIndex
 
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
