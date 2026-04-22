@@ -205,6 +205,26 @@ def stage_benchmark(idx, subject_code, paper_type):
     print(f"    {'Naive linear scan      O(n)':<30} {naive_time:>13.2f} µs")
     print()
     ok(f"Inverted index is  {speedup:.0f}×  faster  ({RUNS:,} runs averaged)")
+    # for terminal display 
+def print_index_tree(idx):
+    banner("INVERTED INDEX — TREE STRUCTURE")
+
+    if not idx.main_index:
+        print("  (empty index)")
+        return
+
+    for key in sorted(idx.main_index.keys()):
+        print(f"\n{key}")
+        postings = idx.main_index[key]
+
+        for i, q_id in enumerate(postings):
+            record = idx.question_store[q_id]
+
+            connector = "├──"
+            if i == len(postings) - 1:
+                connector = "└──"
+
+            print(f"  {connector} {q_id}  ({record['marks']} marks)")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -230,6 +250,7 @@ def main():
     questions            = stage_parse(DEMO_PDFS, SUBJECT)
     questions, _         = stage_tag(questions, SUBJECT, kw_map)
     idx                  = stage_build_index(questions)
+    print_index_tree(idx) # terminal 
     stage_demo_operations(idx, SUBJECT, DEMO_PAPER_TYPE)
     stage_benchmark(idx, SUBJECT, DEMO_PAPER_TYPE)
 
