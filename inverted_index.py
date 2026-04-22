@@ -111,17 +111,16 @@ class InvertedIndex:
 
     # ── Persistence ──────────────────────────────────────────────
 
-    def save(self, path):
-        """
-        Serialize the entire index to a JSON file at `path`.
-        Allows reuse across runs without re-parsing PDFs.
-        """
-        data = {}
-        data["main_index"] = self.main_index
-        data["question_store"] = self.question_store
+    def remove_question(self, question_id):
+        if question_id in self.question_store:
+            del self.question_store[question_id]
         
-        with open(path, "w") as file:
-            json.dump(data, file)
+        for key in self.main_index:
+            cleaned_list = []
+            for qid in self.main_index[key]:
+                if qid != question_id:
+                    cleaned_list.append(qid)
+            self.main_index[key] = cleaned_list
 
     def load(self, path):
         """
