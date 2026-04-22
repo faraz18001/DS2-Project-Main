@@ -56,15 +56,26 @@ def parse_paper(pdf_path, subject_code, paper_type, year):
         image_pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
         image_matches = re.findall(image_pattern, question_text)
         
+        image_count = 0
         for alt_text, image_path_str in image_matches:
             # Check if image file exists
-            if os.path.exists(image_path_str):
-                images_in_question.append(os.path.abspath(image_path_str))
-            else:
-                # Try relative to the images folder
-                potential_path = os.path.join(folder_for_images, os.path.basename(image_path_str))
-                if os.path.exists(potential_path):
-                    images_in_question.append(os.path.abspath(potential_path))
+            original_path = image_path_str
+            if not os.path.exists(original_path):
+                original_path = os.path.join(folder_for_images, os.path.basename(image_path_str))
+                
+            if os.path.exists(original_path):
+                # Make a new, simple name: Q[number]_[count].png
+                new_name = "Q" + question_number + "_" + str(image_count) + ".png"
+                new_path = os.path.join(folder_for_images, new_name)
+                
+                # Rename the file
+                os.rename(original_path, new_path)
+                
+                # Update the markdown text so it points to the new name
+                question_text = question_text.replace(os.path.basename(image_path_str), new_name)
+                
+                images_in_question.append(os.path.abspath(new_path))
+                image_count = image_count + 1
         
         # Build the question dictionary
         question_record = {}
