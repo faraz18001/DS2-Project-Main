@@ -122,6 +122,14 @@ class InvertedIndex:
                     cleaned_list.append(qid)
             self.main_index[key] = cleaned_list
 
+    def save(self, path):
+        data = {}
+        data["main_index"] = self.main_index
+        data["question_store"] = self.question_store
+        
+        with open(path, "w") as file:
+            json.dump(data, file)
+
     def load(self, path):
         """
         Deserialize the index from a JSON file at `path`.
