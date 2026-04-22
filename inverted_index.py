@@ -35,7 +35,9 @@ class InvertedIndex:
         self.question_store[question_id] = record
         if key not in self.main_index:
             self.main_index[key] = []
-        self.main_index[key].append(question_id)
+        #self.main_index[key].append(question_id) // replaced with the if statement 
+        if question_id not in self.main_index[key]:
+            self.main_index[key].append(question_id)
 
     def query(self, key):
         """
