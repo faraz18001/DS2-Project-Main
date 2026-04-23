@@ -5,11 +5,14 @@ pdf_parser.py — PDF ingestion and question extraction.
 import os
 import re
 import struct
+from typing import Any, Dict, List
 
 import pymupdf4llm
 
 
-def parse_paper(pdf_path, subject_code, paper_type, year):
+def parse_paper(
+    pdf_path: str, subject_code: str, paper_type: str, year: int
+) -> List[Dict[str, Any]]:
     # Setup directory for images
     project_root = os.path.dirname(os.path.abspath(__file__))
     file_name = os.path.basename(pdf_path)
@@ -106,7 +109,7 @@ def parse_paper(pdf_path, subject_code, paper_type, year):
     return final_results
 
 
-def parse_all_papers(papers_dir, subject_code):
+def parse_all_papers(papers_dir: str, subject_code: str) -> List[Dict[str, Any]]:
     all_extracted_questions = []
 
     for root, folders, files in os.walk(papers_dir):

@@ -7,15 +7,17 @@ Stage 3: Query & Select   → filter by topic/year, run knapsack
 Stage 4: Worksheet Output → generate the final PDF
 """
 
+from typing import Any, Dict, List, Tuple
+
 from config import *
 from inverted_index import InvertedIndex
-from pdf_parser import parse_all_papers
-from topic_mapper import load_keyword_map, tag_question, build_composite_keys
 from knapsack import select_questions
+from pdf_parser import parse_all_papers
+from topic_mapper import build_composite_keys, load_keyword_map, tag_question
 from worksheet_generator import generate_worksheet
 
 
-def run_ingestion(subject_code):
+def run_ingestion(subject_code: str) -> List[Dict[str, Any]]:
     """
     Stage 1: Parse all PDFs for a subject and tag each question with topics.
 
@@ -34,7 +36,7 @@ def run_ingestion(subject_code):
     pass
 
 
-def run_index_build(questions):
+def run_index_build(questions: List[Dict[str, Any]]) -> InvertedIndex:
     """
     Stage 2: Build the inverted index from tagged question records.
 
@@ -53,7 +55,15 @@ def run_index_build(questions):
     pass
 
 
-def run_query(index, subject_code, topics, paper_type, year_from, year_to, target_marks):
+def run_query(
+    index: InvertedIndex,
+    subject_code: str,
+    topics: List[str],
+    paper_type: str,
+    year_from: int,
+    year_to: int,
+    target_marks: int,
+) -> Tuple[List[Dict[str, Any]], int]:
     """
     Stage 3: Query the index, filter results, and select via knapsack.
 
@@ -79,7 +89,7 @@ def run_query(index, subject_code, topics, paper_type, year_from, year_to, targe
     pass
 
 
-def run_generate(selected_questions, title):
+def run_generate(selected_questions: List[Dict[str, Any]], title: str) -> str:
     """
     Stage 4: Generate the worksheet PDF from selected questions.
 
@@ -98,7 +108,14 @@ def run_generate(selected_questions, title):
     pass
 
 
-def run_full_pipeline(subject_code, topics, paper_type, year_from, year_to, target_marks):
+def run_full_pipeline(
+    subject_code: str,
+    topics: List[str],
+    paper_type: str,
+    year_from: int,
+    year_to: int,
+    target_marks: int,
+) -> str:
     """
     Run all four stages end-to-end.
 

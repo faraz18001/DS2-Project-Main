@@ -1,12 +1,13 @@
 import json
 import os
+from typing import Any, Dict, List
 
 from inverted_index import InvertedIndex
 from pdf_parser import parse_paper
 from topic_mapper import build_composite_keys, load_keyword_map, tag_question
 
 
-def build_master_index(data_dir, keyword_map_path):
+def build_master_index(data_dir: str, keyword_map_path: str) -> InvertedIndex:
     # 1. Initialize
     index = InvertedIndex()
     keyword_map = load_keyword_map(keyword_map_path)

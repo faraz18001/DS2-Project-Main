@@ -5,7 +5,8 @@ Provides simplified routes for the UI: subject selection,
 worksheet generation, and direct PDF download.
 """
 
-from flask import Flask, request, send_file, render_template
+from flask import Flask, render_template, request, send_file
+
 from config import SUBJECTS
 from pipeline import run_full_pipeline
 
@@ -13,8 +14,13 @@ app = Flask(__name__)
 
 # ── Page Routes ──────────────────────────────────────────────────
 
+from typing import List, Union
+
+from flask import Response
+
+
 @app.route("/")
-def index():
+def index() -> str:
     """
     Main page: Show the worksheet generation form.te it in → fully editable boxes, arrows, text, everything.
     Pass list of subjects from config to the template.
@@ -23,10 +29,10 @@ def index():
 
 
 @app.route("/generate", methods=["POST"])
-def generate():
+def generate() -> Response:
     """
     Handle the worksheet generation form submission.
-    
+
     1. Extract form data (subject, topics, marks, etc.)
     2. Run the pipeline to find questions and build PDF.
     3. Return the PDF file directly to the user's browser.
@@ -41,12 +47,7 @@ def generate():
 
     # Run the generator logic
     pdf_path = run_full_pipeline(
-        subject_code, 
-        selected_topics, 
-        paper_type, 
-        year_from, 
-        year_to, 
-        target_marks
+        subject_code, selected_topics, paper_type, year_from, year_to, target_marks
     )
 
     # Send the finished PDF to the user

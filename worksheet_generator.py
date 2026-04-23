@@ -6,8 +6,14 @@ a clean, annotatable A4 PDF using PyMuPDF's vector-preserving
 show_pdf_page() stamping method.
 """
 
+from typing import Any, Dict, List, Tuple
 
-def generate_worksheet(selected_questions, output_path, title="Worksheet"):
+import fitz
+
+
+def generate_worksheet(
+    selected_questions: List[Dict[str, Any]], output_path: str, title: str = "Worksheet"
+) -> str:
     """
     Build the final A4 PDF worksheet from selected questions.
 
@@ -35,7 +41,7 @@ def generate_worksheet(selected_questions, output_path, title="Worksheet"):
     pass
 
 
-def _stamp_header(page, title, total_marks):
+def _stamp_header(page: fitz.Page, title: str, total_marks: int) -> float:
     """
     Draw the worksheet header on the first page.
 
@@ -52,7 +58,13 @@ def _stamp_header(page, title, total_marks):
     pass
 
 
-def _stamp_question(worksheet_doc, page, y_cursor, question, question_number):
+def _stamp_question(
+    worksheet_doc: fitz.Document,
+    page: fitz.Page,
+    y_cursor: float,
+    question: Dict[str, Any],
+    question_number: int,
+) -> Tuple[fitz.Page, float]:
     """
     Stamp a single question onto the worksheet at the given Y position.
 
@@ -77,7 +89,7 @@ def _stamp_question(worksheet_doc, page, y_cursor, question, question_number):
     pass
 
 
-def _calculate_answer_space(marks):
+def _calculate_answer_space(marks: int) -> float:
     """
     Determine how much blank space to leave for the answer.
 

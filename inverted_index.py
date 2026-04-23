@@ -7,6 +7,7 @@ year filtering, and JSON persistence.
 """
 
 import json
+from typing import Any, Dict, List
 
 
 class InvertedIndex:
@@ -18,13 +19,13 @@ class InvertedIndex:
     paper_type, year, marks, pdf, page, bbox fields.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.main_index = {}
         self.question_store = {}
 
     # ── Core Operations ──────────────────────────────────────────
 
-    def insert(self, key, record):
+    def insert(self, key: str, record: Dict[str, Any]) -> None:
         """
         Append a question record to the postings list for `key`.
         Creates the list if it doesn't exist yet.
@@ -33,12 +34,18 @@ class InvertedIndex:
         """
         question_id = record["id"]
         self.question_store[question_id] = record
-        if key not in self.main_index: #agar main_ index mai topic ni hai to daldo
+        if key not in self.main_index:  # agar main_ index mai topic ni hai to daldo
             self.main_index[key] = []
-        if question_id not in self.main_index[key]: #agar topic k question pool mai question exist ni krta to daldo
+        if (
+            question_id not in self.main_index[key]
+        ):  # agar topic k question pool mai question exist ni krta to daldo
             self.main_index[key].append(question_id)
 
-    def query(self, key): #issue here, this should return the question ids, not the pdf parsing data
+    def query(
+        self, key: str
+    ) -> List[
+        Dict[str, Any]
+    ]:  # issue here, this should return the question ids, not the pdf parsing data
         """
         Return the full postings for a single composite key.
         Returns empty list if key not found.
@@ -55,7 +62,11 @@ class InvertedIndex:
 
     # ── Set Operations ───────────────────────────────────────────
 
-    def union(self, keys): #issue here, this should return the question ids, not the pdf parsing data
+    def union(
+        self, keys: List[str]
+    ) -> List[
+        Dict[str, Any]
+    ]:  # issue here, this should return the question ids, not the pdf parsing data
         """
         Merge postings lists for multiple keys.
         Deduplicate by question id — each question appears once.
@@ -65,15 +76,17 @@ class InvertedIndex:
         result_question_id = set()
         for key in keys:
             if key in self.main_index:
-                result_question_id.update(self.main_index[key]) #this add the question ids in the set removing duplicates retaining set properties
+                result_question_id.update(
+                    self.main_index[key]
+                )  # this add the question ids in the set removing duplicates retaining set properties
 
-        #remove this and return the resultant question ids as well
+        # remove this and return the resultant question ids as well
         full_posting_list = []
         for question_id in result_question_id:
             full_posting_list.append(self.question_store[question_id])
         return full_posting_list
 
-    def intersect(self, keys):
+    def intersect(self, keys: List[str]) -> List[Dict[str, Any]]:
         """
         Return records present in ALL postings lists for given keys.
         Use case: "Give me questions tagged BOTH Kinematics AND Vectors."
@@ -90,7 +103,7 @@ class InvertedIndex:
         for key in keys[1:]:
             result_ids.intersection_update(self.main_index[key])
 
-        #remove karna hai yeh, cuz this violates the DS thing
+        # remove karna hai yeh, cuz this violates the DS thing
         full_posting_list = []
         for question_id in result_ids:
             full_posting_list.append(self.question_store[question_id])
@@ -98,7 +111,9 @@ class InvertedIndex:
 
     # ── Filtering ────────────────────────────────────────────────
 
-    def filter_by_year(self, results, year_from, year_to):
+    def filter_by_year(
+        self, results: List[Dict[str, Any]], year_from: int, year_to: int
+    ) -> List[Dict[str, Any]]:
         """
         Filter a list of question records to only those within [year_from, year_to].
         Applied after query/union/intersect as a post-lookup step.
@@ -112,7 +127,7 @@ class InvertedIndex:
 
     # ── Persistence ──────────────────────────────────────────────
 
-    def remove_question(self, question_id):
+    def remove_question(self, question_id: str) -> None:
         if question_id in self.question_store:
             del self.question_store[question_id]
 
@@ -123,7 +138,7 @@ class InvertedIndex:
                     cleaned_list.append(qid)
             self.main_index[key] = cleaned_list
 
-    def save(self, path):
+    def save(self, path: str) -> None:
         data = {}
         data["main_index"] = self.main_index
         data["question_store"] = self.question_store
@@ -131,7 +146,7 @@ class InvertedIndex:
         with open(path, "w") as file:
             json.dump(data, file, indent=4)
 
-    def load(self, path):
+    def load(self, path: str) -> None:
         """
         Deserialize the index from a JSON file at `path`.
         Replaces the current in-memory index with loaded data.

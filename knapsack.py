@@ -6,8 +6,12 @@ target total mark count, selects the subset whose marks sum to
 exactly (or as close as possible to) the target.
 """
 
+from typing import Any, Dict, List, Tuple
 
-def select_questions(candidates, target_marks):
+
+def select_questions(
+    candidates: List[Dict[str, Any]], target_marks: int
+) -> Tuple[List[Dict[str, Any]], int]:
     """
     Select optimal subset of questions using bottom-up 0/1 Knapsack DP.
 
@@ -33,7 +37,7 @@ def select_questions(candidates, target_marks):
     pass
 
 
-def _interleave_by_year(candidates):
+def _interleave_by_year(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Re-order candidates so consecutive questions come from different years.
     Prevents the knapsack from clustering questions from a single paper.
