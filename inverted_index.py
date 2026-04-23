@@ -7,7 +7,7 @@ year filtering, and JSON persistence.
 """
 
 import json
-
+import os
 
 class InvertedIndex:
     """
@@ -44,14 +44,7 @@ class InvertedIndex:
         Returns empty list if key not found.
         O(1) lookup.
         """
-        full_posting_list = []
-        if key in self.main_index:
-            for question_id in self.main_index[key]:
-                full_posting_list.append(self.question_store[question_id])
-            return full_posting_list
-
-        else:
-            return []
+        return self.main_index.get(key, []) 
 
     # ── Set Operations ───────────────────────────────────────────
 
@@ -67,12 +60,9 @@ class InvertedIndex:
             if key in self.main_index:
                 result_question_id.update(self.main_index[key]) #this add the question ids in the set removing duplicates retaining set properties
 
-        #remove this and return the resultant question ids as well
-        full_posting_list = []
-        for question_id in result_question_id:
-            full_posting_list.append(self.question_store[question_id])
-        return full_posting_list
-
+        return list(result_question_id)
+    
+    
     def intersect(self, keys):
         """
         Return records present in ALL postings lists for given keys.
@@ -90,26 +80,31 @@ class InvertedIndex:
         for key in keys[1:]:
             result_ids.intersection_update(self.main_index[key])
 
-        #remove karna hai yeh, cuz this violates the DS thing
-        full_posting_list = []
-        for question_id in result_ids:
-            full_posting_list.append(self.question_store[question_id])
-        return full_posting_list
+        return list(result_ids)
+
 
     # ── Filtering ────────────────────────────────────────────────
 
-    def filter_by_year(self, results, year_from, year_to):
+    def fetch_documents(self, question_ids, year_from=None, year_to=None):
         """
-        Filter a list of question records to only those within [year_from, year_to].
-        Applied after query/union/intersect as a post-lookup step.
-        O(n) linear scan.
+        Takes a list of Question IDs, retrieves their full payload from the 
+        question_store, and optionally filters them by year.
         """
-        filtered_results = []
-        for record in results:
-            if record["year"] >= year_from and record["year"] <= year_to:
-                filtered_results.append(record)
-        return filtered_results
-
+        results = []
+        for qid in question_ids:
+            record = self.question_store[qid]
+            if record:
+                # If year filters are provided, apply them during the fetch
+                if year_from and year_to:
+                    if year_from <= record["year"] <= year_to:
+                        results.append(record)
+                else:
+                    # If no year filters, just append
+                    results.append(record)
+        return results
+    
+    
+    
     # ── Persistence ──────────────────────────────────────────────
 
     def remove_question(self, question_id):
@@ -127,6 +122,10 @@ class InvertedIndex:
         data = {}
         data["main_index"] = self.main_index
         data["question_store"] = self.question_store
+        
+        # --- ADD THIS LINE ---
+        # This tells Python: "Check the path, and if the folder doesn't exist, build it!"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
         with open(path, "w") as file:
             json.dump(data, file, indent=4)

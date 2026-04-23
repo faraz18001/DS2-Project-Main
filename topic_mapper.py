@@ -87,19 +87,25 @@ def tag_question(question_text, subject_code, keyword_map):
 
     # Sort topics by score descending
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    print(ranked)
+    
 
     # Always include the top topic
     best_score = ranked[0][1]
     result = [ranked[0][0]]
 
     # Include a second topic only if it scores at least 60% of the best
-    if len(ranked) > 1 and ranked[1][1] >= best_score * 0.6:
-        result.append(ranked[1][0])
+    # if len(ranked) > 1 and ranked[1][1] >= best_score * 0.6:
+    #     result.append(ranked[1][0])
+
+    for item in ranked[1:]:
+        if item[1] >= best_score * 0.6:
+            result.append(item[0])
 
     return result
 
 
-def build_composite_keys(subject_code, topics, paper_type):
+def build_composite_keys(subject_code, topics , paper_type):
     """
     Construct composite index keys from subject, topics, and paper type.
 
@@ -118,3 +124,26 @@ def build_composite_keys(subject_code, topics, paper_type):
     for topic in topics:
         keys.append(f"{subject_code}_{topic}_{paper_type}")
     return keys
+
+
+"""
+res = tag_question("calculate the velocity and mass", "9702", {
+    "5054": {
+        "Measurement": ["measure", "unit", "prefix", "error", "accuracy", "precision", "instrument", "reading", "scale", "uncertainty", "vernier", "micrometer", "caliper"],
+        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "distance", "time", "gradient", "slope", "graph", "motion", "deceleration", "free fall", "terminal"],
+        "Forces": ["force", "newton", "weight", "friction", "tension", "moment", "torque", "equilibrium", "pivot", "resultant", "balanced", "unbalanced", "spring", "hooke", "extension", "load", "pressure", "density"],
+        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt", "conservation", "energy", "gravitational potential"],
+        "Thermal Physics": ["temperature", "heat", "thermal", "conduction", "convection", "radiation", "specific heat", "boiling", "melting", "evaporation", "latent", "expansion", "thermometer", "celsius", "kelvin"],
+        "Waves": ["wave", "frequency", "wavelength", "amplitude", "oscillation", "sound", "light", "diffraction", "refraction", "reflection", "lens", "mirror", "prism", "spectrum", "electromagnetic", "transverse", "longitudinal", "period"],
+        "Electricity": ["current", "voltage", "resistance", "circuit", "ohm", "series", "parallel", "cell", "battery", "wire", "resistor", "ammeter", "voltmeter", "diode", "thermistor", "ldr", "potential divider", "electromotive"],
+        "Magnetism": ["magnetic", "field", "electromagnet", "motor", "generator", "induced", "solenoid", "compass", "relay", "transformer", "induction", "alternating", "direct current"],
+        "Nuclear Physics": ["nucleus", "atom", "proton", "neutron", "electron", "radioactive", "decay", "half-life", "alpha", "beta", "gamma", "isotope", "nucleon", "atomic number", "mass number", "fission", "fusion"]
+    },
+    "9702": {
+        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "slope", "gradient", "vector"],
+        "Dynamics": ["force", "newton", "momentum", "impulse", "mass", "friction", "tension", "weight"],
+        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt"]
+    }
+}
+)
+"""

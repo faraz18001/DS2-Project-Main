@@ -1,18 +1,36 @@
 {
     "5054": {
-        "Measurement": ["measure", "unit", "prefix", "error", "accuracy", "precision", "instrument", "reading", "scale", "uncertainty", "vernier", "micrometer", "caliper"],
-        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "distance", "time", "gradient", "slope", "graph", "motion", "deceleration", "free fall", "terminal"],
-        "Forces": ["force", "newton", "weight", "friction", "tension", "moment", "torque", "equilibrium", "pivot", "resultant", "balanced", "unbalanced", "spring", "hooke", "extension", "load", "pressure", "density"],
-        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt", "conservation", "energy", "gravitational potential"],
-        "Thermal Physics": ["temperature", "heat", "thermal", "conduction", "convection", "radiation", "specific heat", "boiling", "melting", "evaporation", "latent", "expansion", "thermometer", "celsius", "kelvin"],
-        "Waves": ["wave", "frequency", "wavelength", "amplitude", "oscillation", "sound", "light", "diffraction", "refraction", "reflection", "lens", "mirror", "prism", "spectrum", "electromagnetic", "transverse", "longitudinal", "period"],
-        "Electricity": ["current", "voltage", "resistance", "circuit", "ohm", "series", "parallel", "cell", "battery", "wire", "resistor", "ammeter", "voltmeter", "diode", "thermistor", "ldr", "potential divider", "electromotive"],
-        "Magnetism": ["magnetic", "field", "electromagnet", "motor", "generator", "induced", "solenoid", "compass", "relay", "transformer", "induction", "alternating", "direct current"],
-        "Nuclear Physics": ["nucleus", "atom", "proton", "neutron", "electron", "radioactive", "decay", "half-life", "alpha", "beta", "gamma", "isotope", "nucleon", "atomic number", "mass number", "fission", "fusion"]
+        "Measurement": ["measure", "unit", "prefix", "error", "accuracy", "precision", "instrument", "reading", "scale", "uncertainty", "vernier", "micrometer", "caliper", "scalar", "vector", "zero error"],
+        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "distance", "time", "gradient", "slope", "graph", "motion", "deceleration", "free fall", "terminal velocity", "rest", "constant speed"],
+        "Forces": ["force", "forces", "newton", "weight", "friction", "tension", "moment", "moments", "torque", "equilibrium", "pivot", "resultant", "balanced", "unbalanced", "spring", "hooke", "extension", "load", "pressure", "density", "mass", "inertia", "centre of gravity", "elastic limit"],
+        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt", "conservation", "energy", "gravitational potential", "elastic potential", "renewable", "non-renewable"],
+        "Thermal Physics": ["temperature", "heat", "thermal", "conduction", "convection", "radiation", "specific heat", "boiling", "melting", "evaporation", "latent", "expansion", "thermometer", "celsius", "kelvin", "internal energy", "state", "solid", "liquid", "gas", "freezing", "condensation"],
+        "Waves": ["wave", "waves", "frequency", "wavelength", "amplitude", "oscillation", "sound", "light", "diffraction", "refraction", "reflection", "lens", "mirror", "prism", "spectrum", "electromagnetic", "transverse", "longitudinal", "period", "ultrasound", "echo", "pitch", "loudness", "focal length", "real image", "virtual image", "critical angle", "total internal reflection"],
+        "Electricity": ["current", "voltage", "resistance", "circuit", "circuits", "ohm", "series", "parallel", "cell", "battery", "wire", "resistor", "ammeter", "voltmeter", "diode", "thermistor", "ldr", "potential divider", "electromotive", "emf", "charge", "coulomb", "static", "electrostatic", "electron", "p.d.", "potential difference"],
+        "Magnetism": ["magnetic", "field", "electromagnet", "motor", "generator", "induced", "solenoid", "compass", "relay", "transformer", "induction", "alternating", "direct current", "a.c.", "d.c.", "fleming", "left hand rule", "right hand rule", "north pole", "south pole", "magnetic flux"],
+        "Nuclear Physics": ["nucleus", "atom", "proton", "neutron", "electron", "radioactive", "decay", "half-life", "alpha", "beta", "gamma", "isotope", "nucleon", "atomic number", "mass number", "fission", "fusion", "background radiation", "geiger", "rutherford", "plum pudding"],
+        "Space Physics": ["planet", "moon", "sun", "solar system", "orbit", "galaxy", "universe", "star", "light-year", "red-shift", "cosmic microwave background", "hubble", "big bang", "dwarf", "supernova", "black hole", "protostar", "nebula"]
     },
     "9702": {
-        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "slope", "gradient", "vector"],
-        "Dynamics": ["force", "newton", "momentum", "impulse", "mass", "friction", "tension", "weight"],
-        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt"]
+        "Physical Quantities & Units": ["base unit", "derived unit", "homogeneous", "scalar", "vector", "uncertainty", "absolute", "fractional", "percentage", "random error", "systematic error", "precision", "accuracy", "cathode-ray oscilloscope", "cro"],
+        "Kinematics": ["displacement", "velocity", "acceleration", "speed", "distance", "gradient", "area under graph", "free fall", "projectile", "trajectory", "horizontal component", "vertical component"],
+        "Dynamics": ["momentum", "mass", "weight", "force", "newton", "impulse", "elastic collision", "inelastic collision", "conservation of momentum", "center of mass"],
+        "Forces, Density & Pressure": ["upthrust", "pressure", "density", "torque", "couple", "moment", "equilibrium", "coplanar", "archimedes"],
+        "Work, Energy & Power": ["work done", "kinetic energy", "potential energy", "efficiency", "power", "conservative"],
+        "Deformation of Solids": ["stress", "strain", "young modulus", "elastic", "plastic", "hooke", "spring constant", "extension", "limit of proportionality", "ultimate tensile stress"],
+        "Waves": ["progressive", "transverse", "longitudinal", "amplitude", "phase", "period", "frequency", "wavelength", "intensity", "doppler", "polarization", "polaroid"],
+        "Superposition": ["stationary wave", "standing wave", "node", "antinode", "diffraction", "interference", "coherence", "path difference", "phase difference", "double-slit", "young's", "grating", "fringe"],
+        "Electricity": ["current", "charge", "coulomb", "potential difference", "emf", "resistance", "ohm", "resistivity", "drift velocity", "mean drift"],
+        "D.C. Circuits": ["series", "parallel", "kirchhoff", "potential divider", "internal resistance", "terminal p.d.", "potentiometer", "galvanometer"],
+        "Particle Physics": ["alpha", "beta", "gamma", "decay", "isotope", "nucleon", "lepton", "hadron", "quark", "up", "down", "strange", "meson", "baryon", "neutrino", "antineutrino", "positron", "antimatter"],
+        "Motion in a Circle": ["radian", "angular velocity", "centripetal", "circumference", "period"],
+        "Gravitational Fields": ["gravitational", "newton's law of gravitation", "point mass", "field strength", "orbit", "geostationary", "potential"],
+        "Temperature & Ideal Gases": ["thermal equilibrium", "absolute zero", "kelvin", "thermodynamic", "specific heat capacity", "specific latent heat", "ideal gas", "mole", "avogadro", "boyle", "charles", "kinetic theory", "mean square speed", "root mean square"],
+        "Oscillations": ["simple harmonic motion", "shm", "angular frequency", "restoring force", "damping", "resonance", "natural frequency", "forced oscillation"],
+        "Electric Fields & Capacitance": ["electric field", "uniform field", "coulomb's law", "permittivity", "capacitor", "farad", "dielectric", "time constant", "exponential discharge"],
+        "Magnetic Fields & Electromagnetism": ["magnetic flux density", "tesla", "hall effect", "hall probe", "fleming", "force on conductor", "force on charge", "lorentz", "electromagnetic induction", "faraday", "lenz", "weber", "alternating current", "rms", "transformer", "rectification", "smoothing"],
+        "Quantum Physics": ["photon", "planck", "quantum", "photoelectric", "work function", "threshold frequency", "de broglie", "wave-particle duality", "energy level", "emission spectrum", "absorption spectrum", "band"],
+        "Nuclear & Medical Imaging": ["mass defect", "binding energy", "mass-energy", "e=mc2", "radioactive decay", "decay constant", "activity", "becquerel", "exponential decay", "x-ray", "attenuation", "contrast", "ct scan", "ultrasound", "acoustic impedance", "piezo-electric", "pet", "tracer", "annihilation"],
+        "Astronomy & Cosmology": ["luminosity", "radiant flux", "standard candle", "wien", "stefan-boltzmann", "star", "light-year", "parsec", "hubble", "red-shift", "big bang"]
     }
 }

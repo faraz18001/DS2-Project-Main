@@ -14,36 +14,29 @@ def build_master_index(data_dir, keyword_map_path):
 
     # 2. Ingestion
     for file_name in os.listdir(data_dir):
-        if file_name.startswith("physics_paper") and file_name.endswith(".pdf"):
+        if file_name.endswith(".pdf") and "_qp_" in file_name:
             pdf_path = os.path.join(data_dir, file_name)
 
-            # 3. Clean up the paper_type mapping
-            # physics_paper1_part1.pdf -> paper1_part1
-            name_without_ext = file_name.replace(".pdf", "")
-            parts = name_without_ext.split("_")
-            # parts will be ['physics', 'paper1', 'part1']
-            paper_type = parts[1] + "_" + parts[2]
-
-            year = 2025
-
-            print(f"Ingesting {file_name} as {paper_type}...")
-            questions = parse_paper(pdf_path, subject_code, paper_type, year)
+            print(f"Ingesting {file_name}...")
+            # We don't need to pass subject/year anymore, it figures it out!
+            questions = parse_paper(pdf_path)
 
             for q in questions:
-                # 4. Categorize
-                topics = tag_question(q["text"], subject_code, keyword_map)
+                # 4. Categorize (Using the text we secretly extracted)
+                topics = tag_question(q["text"], q["subject"], keyword_map)
 
                 # 5. Build Keys & Insert
-                keys = build_composite_keys(subject_code, topics, paper_type)
+                # Generates keys like: "9702_w25_p13_Kinematics"
+                keys = build_composite_keys(q["subject"], topics, q["paper_type"])
                 for key in keys:
                     index.insert(key, q)
 
     # 6. Persist
-    index_path = "physics_master_index.json"
+    index_path = "data/index/physics_master_index.json"
     index.save(index_path)
     print(f"Master index saved to {index_path}")
     return index
 
 
 if __name__ == "__main__":
-    build_master_index("data/papers", "data/keywords/keyword_map.json")
+    build_master_index("data/papers/qp", "data/keywords/keyword_map.json")
