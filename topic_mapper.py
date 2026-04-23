@@ -87,7 +87,6 @@ def tag_question(question_text, subject_code, keyword_map):
 
     # Sort topics by score descending
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    print(ranked)
     
 
     # Always include the top topic

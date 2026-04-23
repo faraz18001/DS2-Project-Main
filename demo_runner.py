@@ -3,11 +3,11 @@ demo_runner.py — Terminal app to manage the question bank.
 """
 
 import os
-import json
 import time
 from pdf_parser import parse_paper
 from topic_mapper import load_keyword_map, tag_question, build_composite_keys
 from inverted_index import InvertedIndex
+from build_index import build_composite_keys, build_master_index
 
 def show_menu():
     print("\n" + "="*40)
@@ -28,17 +28,7 @@ def view_tree(index):
         return
 
     # Sort keys so it looks organized
-    all_keys = []
-    for k in index.main_index:
-        all_keys.append(k)
-    
-    # Sort the list the long way
-    for i in range(len(all_keys)):
-        for j in range(i + 1, len(all_keys)):
-            if all_keys[i] > all_keys[j]:
-                temp = all_keys[i]
-                all_keys[i] = all_keys[j]
-                all_keys[j] = temp
+    all_keys = sorted(list(index.main_index.keys()))
 
     for key in all_keys:
         print("\n" + key)
@@ -52,16 +42,20 @@ def view_tree(index):
             print(connector + qid)
 
 def search_topic(index):
-    print("\nEnter topic/key to search (e.g., 5054_Forces_paper1_part1):")
+    # Updated to show the new key format
+    print("\nEnter topic/key to search (e.g., 9702_Kinematics_p13):")
     search_key = input(">> ")
     
-    results = index.query(search_key)
+    # SRP Fix: query() now only returns IDs
+    result_ids = index.query(search_key)
     
-    if len(results) == 0:
+    if len(result_ids) == 0:
         print("No questions found for that key.")
     else:
-        print("\nFound " + str(len(results)) + " questions:")
-        for r in results:
+        print("\nFound " + str(len(result_ids)) + " questions:")
+        for qid in result_ids:
+            # Look up the actual data in the store
+            r = index.question_store[qid]
             print("-" * 20)
             print("ID: " + r["id"])
             print("Marks: " + str(r["marks"]))
@@ -70,24 +64,27 @@ def search_topic(index):
             print("Text: " + snippet + "...")
 
 def add_paper(index, keyword_map):
-    print("\nEnter path to PDF file:")
+    print("\nEnter path to PDF file (e.g., data/papers/9702_w25_qp_13.pdf):")
     pdf_path = input(">> ")
     if not os.path.exists(pdf_path):
         print("Error: File not found.")
         return
     
-    subject = input("Enter Subject Code (e.g., 5054): ")
-    year = input("Enter Year: ")
-    paper_type = input("Enter Paper Type (e.g., paper1_part1): ")
+    # Auto-Ingestion Fix: The parser figures everything out from the filename now!
+    print("Processing paper (auto-extracting metadata from filename)...")
+    new_questions = parse_paper(pdf_path)
     
-    print("Processing paper...")
-    new_questions = parse_paper(pdf_path, subject, paper_type, int(year))
-    
+    if not new_questions:
+        print("Error: Could not parse paper. Check filename format.")
+        return
+        
     for q in new_questions:
-        # Get topics using the mapper
-        topics = tag_question(q["text"], subject, keyword_map)
+        # Get topics using the text we extracted
+        topics = tag_question(q["text"], q["subject"], keyword_map)
+        
         # Create keys
-        keys = build_composite_keys(subject, topics, paper_type)
+        keys = build_composite_keys(q["subject"], topics, q["paper_type"])
+        
         # Put in index
         for key in keys:
             index.insert(key, q)
@@ -107,20 +104,18 @@ def delete_question(index):
 
 def run_benchmark(index):
     print("\nRunning performance test...")
-    if not index.question_store:
-        print("Error: No data to benchmark.")
+    if not index.question_store or not index.main_index:
+        print("Error: No data to benchmark. Add a paper first.")
         return
         
     # Get a key that actually exists
-    target_key = ""
-    for k in index.main_index:
-        target_key = k
-        break
+    target_key = list(index.main_index.keys())[0]
     
-    subject = "5054"
-    # Find a topic from the key
-    topic = target_key.split("_")[1]
-    ptype = target_key.split("_")[2] + "_" + target_key.split("_")[3]
+    # Key Splitting Fix: New keys only have 3 parts (Subject_Topic_PaperType)
+    parts = target_key.split("_")
+    subject = parts[0]
+    topic = parts[1]
+    ptype = parts[2]
 
     all_records = []
     for qid in index.question_store:
@@ -141,7 +136,6 @@ def run_benchmark(index):
         matches = []
         for r in all_records:
             if r["subject"] == subject and r["paper_type"] == ptype:
-                # This is a bit simplified but shows the point
                 if "text" in r and topic.lower() in r["text"].lower():
                     matches.append(r)
     end_time = time.time()
@@ -156,21 +150,26 @@ def run_benchmark(index):
         print("The Inverted Index is about " + str(int(ratio)) + "x faster!")
 
 def main():
-    index_file = "physics_master_index.json"
-    keyword_file = "data/keywords/keyword_map.json"
+    # Updated to match your new index folder structure
+    index_file_path = "data/index/physics_master_index.json"
+    keyword_file_path = "data/keywords/keyword_map.json"
+    papers_pool_path = "data/papers/qp"
     
     # Create object
     bank_index = InvertedIndex()
     
     # Load data if it exists
-    if os.path.exists(index_file):
+    if os.path.exists(index_file_path):
         print("Loading existing index...")
-        bank_index.load(index_file)
+        bank_index.load(index_file_path)
     else:
         print("Starting with a fresh index.")
+        build_master_index(papers_pool_path, keyword_file_path)
+        bank_index.load(index_file_path)
+        
         
     # Load keywords
-    kw_map = load_keyword_map(keyword_file)
+    kw_map = load_keyword_map(keyword_file_path)
     
     while True:
         show_menu()
@@ -187,8 +186,8 @@ def main():
         elif choice == "5":
             run_benchmark(bank_index)
         elif choice == "0":
-            print("Saving changes to " + index_file + "...")
-            bank_index.save(index_file)
+            print("Saving changes to " + index_file_path + "...")
+            bank_index.save(index_file_path)
             print("Done. Goodbye!")
             break
         else:

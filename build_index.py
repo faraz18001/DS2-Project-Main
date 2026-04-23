@@ -10,13 +10,13 @@ def build_master_index(data_dir, keyword_map_path):
     # 1. Initialize
     index = InvertedIndex()
     keyword_map = load_keyword_map(keyword_map_path)
-    subject_code = "5054"  # Hardcoded based on project context
 
     # 2. Ingestion
     for file_name in os.listdir(data_dir):
+        
         if file_name.endswith(".pdf") and "_qp_" in file_name:
             pdf_path = os.path.join(data_dir, file_name)
-
+        
             print(f"Ingesting {file_name}...")
             # We don't need to pass subject/year anymore, it figures it out!
             questions = parse_paper(pdf_path)

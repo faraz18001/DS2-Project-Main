@@ -15,8 +15,8 @@ def parse_paper(pdf_path):
     Expects PapaCambridge naming convention: e.g., 9702_w25_qp_13.pdf
     """
     # 1. Parse the filename to get standard metadata
-    file_name = os.path.basename(pdf_path)
-    name_no_ext = os.path.splitext(file_name)[0]    
+    file_name = os.path.basename(pdf_path)          #Input: "C:\Users\Murtaza\Project\data\papers\9702_w25_qp_13.pdf"   Output: "9702_w25_qp_13.pdf"
+    name_no_ext = os.path.splitext(file_name)[0]    #creates: ("9702_w25_qp_13", ".pdf") and put "9702_w25_qp_13" in name_no_ext
     parts = name_no_ext.split('_')
     
     if len(parts) >= 4:
@@ -37,9 +37,10 @@ def parse_paper(pdf_path):
     current_q = None
     expected_q = 1
     
-    # Regex to catch Cambridge question starts: e.g., "1 ", "2(a)", "3 " at the start of a block
+    # Regex to catch Cambridge question starts: e.g., "1 ", "20", "3 " at the start of a block
     q_num_pattern = re.compile(r'^(\d+)\s')
-    
+
+    #AI generated
     # Iterate through every page
     for page_num in range(len(doc)):
         page = doc[page_num]
