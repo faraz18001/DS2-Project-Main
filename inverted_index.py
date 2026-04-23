@@ -35,7 +35,7 @@ class InvertedIndex:
         self.question_store[question_id] = record
         if key not in self.main_index:
             self.main_index[key] = []
-        #self.main_index[key].append(question_id) // replaced with the if statement 
+        # self.main_index[key].append(question_id) // replaced with the if statement
         if question_id not in self.main_index[key]:
             self.main_index[key].append(question_id)
 
@@ -85,11 +85,11 @@ class InvertedIndex:
         for key in keys:
             if key not in self.main_index:
                 return []
-                
+
         result_ids = set(self.main_index[keys[0]])
         for key in keys[1:]:
             result_ids.intersection_update(self.main_index[key])
-            
+
         full_posting_list = []
         for question_id in result_ids:
             full_posting_list.append(self.question_store[question_id])
@@ -114,7 +114,7 @@ class InvertedIndex:
     def remove_question(self, question_id):
         if question_id in self.question_store:
             del self.question_store[question_id]
-        
+
         for key in self.main_index:
             cleaned_list = []
             for qid in self.main_index[key]:
@@ -126,9 +126,9 @@ class InvertedIndex:
         data = {}
         data["main_index"] = self.main_index
         data["question_store"] = self.question_store
-        
+
         with open(path, "w") as file:
-            json.dump(data, file)
+            json.dump(data, file, indent=4)
 
     def load(self, path):
         """
@@ -137,6 +137,6 @@ class InvertedIndex:
         """
         with open(path, "r") as file:
             data = json.load(file)
-            
+
         self.main_index = data["main_index"]
         self.question_store = data["question_store"]
