@@ -33,15 +33,14 @@ class InvertedIndex:
         """
         question_id = record["id"]
         self.question_store[question_id] = record
-        if key not in self.main_index:
+        if key not in self.main_index: #agar main_ index mai topic ni hai to daldo
             self.main_index[key] = []
-        # self.main_index[key].append(question_id) // replaced with the if statement
-        if question_id not in self.main_index[key]:
+        if question_id not in self.main_index[key]: #agar topic k question pool mai question exist ni krta to daldo
             self.main_index[key].append(question_id)
 
-    def query(self, key):
+    def query(self, key): #issue here, this should return the question ids, not the pdf parsing data
         """
-        Return the full postings list for a single composite key.
+        Return the full postings for a single composite key.
         Returns empty list if key not found.
         O(1) lookup.
         """
@@ -56,7 +55,7 @@ class InvertedIndex:
 
     # ── Set Operations ───────────────────────────────────────────
 
-    def union(self, keys):
+    def union(self, keys): #issue here, this should return the question ids, not the pdf parsing data
         """
         Merge postings lists for multiple keys.
         Deduplicate by question id — each question appears once.
@@ -66,8 +65,9 @@ class InvertedIndex:
         result_question_id = set()
         for key in keys:
             if key in self.main_index:
-                result_question_id.update(self.main_index[key])
+                result_question_id.update(self.main_index[key]) #this add the question ids in the set removing duplicates retaining set properties
 
+        #remove this and return the resultant question ids as well
         full_posting_list = []
         for question_id in result_question_id:
             full_posting_list.append(self.question_store[question_id])
@@ -90,6 +90,7 @@ class InvertedIndex:
         for key in keys[1:]:
             result_ids.intersection_update(self.main_index[key])
 
+        #remove karna hai yeh, cuz this violates the DS thing
         full_posting_list = []
         for question_id in result_ids:
             full_posting_list.append(self.question_store[question_id])

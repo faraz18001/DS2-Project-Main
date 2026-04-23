@@ -35,6 +35,7 @@ def load_keyword_map(path):
 
 def tag_question(question_text, subject_code, keyword_map):
     """
+    based on "bag of words text classification" algorithm
     Assign one or more topic labels to a question based on keyword frequency.
 
     Steps:
