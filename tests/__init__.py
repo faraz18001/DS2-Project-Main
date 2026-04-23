@@ -1,1 +1,4 @@
-# tests package
+# Make the flat-layout project importable from inside tests/
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

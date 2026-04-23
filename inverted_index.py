@@ -2,95 +2,164 @@
 inverted_index.py — Custom Inverted Index data structure.
 
 Maps composite keys (e.g. "9702_Kinematics_P2") to postings lists
-of question records. Supports insert, query, union, intersection,
-year filtering, and JSON persistence.
+of question records. Supports insert, delete, query (search), union,
+intersection, year filtering, and JSON persistence.
+
+DATA STRUCTURE OVERVIEW
+-----------------------
+An inverted index reverses the natural question->topics direction of storage.
+Instead of:
+    question1 -> [Kinematics, Dynamics]
+    question2 -> [Kinematics]
+    question3 -> [Energy]
+
+we store:
+    Kinematics -> [question1, question2]
+    Dynamics   -> [question1]
+    Energy     -> [question3]
+
+Why: given a topic, retrieving all matching questions is now O(1) direct
+lookup instead of an O(n) scan through every question.
+
+We use two dicts:
+    main_index     : key (str) -> list of question ids (list of str)
+    question_store : question id -> full record (dict)
+
+This separation prevents duplicating the full record across multiple keys
+when a question is tagged with more than one topic — postings lists hold
+compact ids, the store holds the heavyweight record once.
 """
 
 import json
-from typing import Any, Dict, List
 
 
 class InvertedIndex:
-    """
-    Inverted index mapping composite topic keys → postings lists.
 
-    Key format: {SubjectCode}_{Topic}_{PaperType}
-    Each posting is a question record dict with id, subject, topic,
-    paper_type, year, marks, pdf, page, bbox fields.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self):
+        # Primary structure — maps composite key -> list of question ids
         self.main_index = {}
+        # Secondary structure — maps question id -> full record
         self.question_store = {}
 
-    # ── Core Operations ──────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
+    # Core Operations: INSERT, SEARCH (query), DELETE
+    # ────────────────────────────────────────────────────────────────────
 
-    def insert(self, key: str, record: Dict[str, Any]) -> None:
+    def insert(self, key, record):
         """
-        Append a question record to the postings list for `key`.
-        Creates the list if it doesn't exist yet.
-        Skips duplicates (same question id already in that list).
-        O(1) amortized.
+        INSERT — append `record` to the postings list under `key`.
+
+        Algorithm:
+        1. Store the full record in question_store, keyed by its id.
+        2. If `key` is new to main_index, create an empty postings list for it.
+        3. Append the record's id to that list.
+
+        Time: O(1) amortized (dict insert + list append).
         """
         question_id = record["id"]
         self.question_store[question_id] = record
-        if key not in self.main_index:  # agar main_ index mai topic ni hai to daldo
+        if key not in self.main_index:
             self.main_index[key] = []
-        if (
-            question_id not in self.main_index[key]
-        ):  # agar topic k question pool mai question exist ni krta to daldo
-            self.main_index[key].append(question_id)
+        self.main_index[key].append(question_id)
 
-    def query(
-        self, key: str
-    ) -> List[
-        Dict[str, Any]
-    ]:  # issue here, this should return the question ids, not the pdf parsing data
+    def query(self, key):
         """
-        Return the full postings for a single composite key.
-        Returns empty list if key not found.
-        O(1) lookup.
+        SEARCH — return the full postings list for a single composite key.
+
+        Algorithm:
+        1. Check if the key exists in main_index.
+        2. If yes, walk the id list and resolve each id back to its record.
+        3. If no, return an empty list.
+
+        Time: O(k) where k = size of postings list (O(1) for the lookup itself).
         """
         full_posting_list = []
         if key in self.main_index:
             for question_id in self.main_index[key]:
                 full_posting_list.append(self.question_store[question_id])
             return full_posting_list
+        return []
 
-        else:
-            return []
-
-    # ── Set Operations ───────────────────────────────────────────
-
-    def union(
-        self, keys: List[str]
-    ) -> List[
-        Dict[str, Any]
-    ]:  # issue here, this should return the question ids, not the pdf parsing data
+    def delete(self, key, question_id=None):
         """
-        Merge postings lists for multiple keys.
-        Deduplicate by question id — each question appears once.
-        Use case: "Give me all Kinematics OR Dynamics questions."
-        O(k + n) where k = number of keys, n = total postings.
+        DELETE — remove either the entire postings list for a key, or a
+        specific question id from that list.
+
+        If question_id is None: delete the key and its whole postings list.
+        If question_id is given: delete just that one id from the list;
+                                 if the list becomes empty, delete the key too.
+
+        Also cleans up question_store when the id is no longer referenced
+        by any other key.
+
+        Time: O(n) worst-case to remove an id from the list.
         """
-        result_question_id = set()
+        if key not in self.main_index:
+            return
+
+        if question_id is None:
+            ids_to_check = list(self.main_index[key])
+            del self.main_index[key]
+            # Remove orphan records from question_store
+            for qid in ids_to_check:
+                if not self._is_referenced(qid):
+                    self.question_store.pop(qid, None)
+            return
+
+        # Remove a single id
+        if question_id in self.main_index[key]:
+            self.main_index[key].remove(question_id)
+            if len(self.main_index[key]) == 0:
+                del self.main_index[key]
+            if not self._is_referenced(question_id):
+                self.question_store.pop(question_id, None)
+
+    def _is_referenced(self, question_id):
+        """Check if a question id still appears in any postings list."""
+        for ids in self.main_index.values():
+            if question_id in ids:
+                return True
+        return False
+
+    # ────────────────────────────────────────────────────────────────────
+    # Set Operations: UNION, INTERSECT
+    # ────────────────────────────────────────────────────────────────────
+
+    def union(self, keys):
+        """
+        UNION — merge postings lists for multiple keys, deduplicated by id.
+
+        Use case: "Give me all Kinematics OR Dynamics OR Energy questions."
+
+        Algorithm:
+        1. Collect all question ids from every key's postings list into a set
+           (dedup is automatic).
+        2. Resolve each id back to its full record.
+
+        Time: O(k + n) where k = number of keys, n = total postings size.
+        """
+        result_ids = set()
         for key in keys:
             if key in self.main_index:
-                result_question_id.update(
-                    self.main_index[key]
-                )  # this add the question ids in the set removing duplicates retaining set properties
+                result_ids.update(self.main_index[key])
 
-        # remove this and return the resultant question ids as well
         full_posting_list = []
-        for question_id in result_question_id:
-            full_posting_list.append(self.question_store[question_id])
+        for qid in result_ids:
+            full_posting_list.append(self.question_store[qid])
         return full_posting_list
 
-    def intersect(self, keys: List[str]) -> List[Dict[str, Any]]:
+    def intersect(self, keys):
         """
-        Return records present in ALL postings lists for given keys.
-        Use case: "Give me questions tagged BOTH Kinematics AND Vectors."
-        O(k × n) via set intersection on question ids.
+        INTERSECT — return records present in ALL postings lists for the given keys.
+
+        Use case: "Questions tagged BOTH Kinematics AND Vectors."
+
+        Algorithm:
+        1. Start with the first key's id set.
+        2. Intersect it with every subsequent key's id set.
+        3. Resolve the remaining ids back to records.
+
+        Time: O(k × n) where k = number of keys, n = smallest postings size.
         """
         if keys is None or len(keys) == 0:
             return []
@@ -103,56 +172,56 @@ class InvertedIndex:
         for key in keys[1:]:
             result_ids.intersection_update(self.main_index[key])
 
-        # remove karna hai yeh, cuz this violates the DS thing
         full_posting_list = []
-        for question_id in result_ids:
-            full_posting_list.append(self.question_store[question_id])
+        for qid in result_ids:
+            full_posting_list.append(self.question_store[qid])
         return full_posting_list
 
-    # ── Filtering ────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
+    # Post-lookup Filtering
+    # ────────────────────────────────────────────────────────────────────
 
-    def filter_by_year(
-        self, results: List[Dict[str, Any]], year_from: int, year_to: int
-    ) -> List[Dict[str, Any]]:
+    def filter_by_year(self, results, year_from, year_to):
         """
-        Filter a list of question records to only those within [year_from, year_to].
-        Applied after query/union/intersect as a post-lookup step.
-        O(n) linear scan.
+        Filter a list of records to those with year in [year_from, year_to].
+        Applied after query/union/intersect as a post-retrieval step.
+
+        Time: O(n) linear scan.
         """
-        filtered_results = []
+        filtered = []
         for record in results:
-            if record["year"] >= year_from and record["year"] <= year_to:
-                filtered_results.append(record)
-        return filtered_results
+            if year_from <= record["year"] <= year_to:
+                filtered.append(record)
+        return filtered
 
-    # ── Persistence ──────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
+    # Persistence
+    # ────────────────────────────────────────────────────────────────────
 
-    def remove_question(self, question_id: str) -> None:
-        if question_id in self.question_store:
-            del self.question_store[question_id]
+    def save(self, path):
+        """Serialize the index to JSON so it survives across program runs."""
+        data = {
+            "main_index": self.main_index,
+            "question_store": self.question_store,
+        }
+        with open(path, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
 
-        for key in self.main_index:
-            cleaned_list = []
-            for qid in self.main_index[key]:
-                if qid != question_id:
-                    cleaned_list.append(qid)
-            self.main_index[key] = cleaned_list
-
-    def save(self, path: str) -> None:
-        data = {}
-        data["main_index"] = self.main_index
-        data["question_store"] = self.question_store
-
-        with open(path, "w") as file:
-            json.dump(data, file, indent=4)
-
-    def load(self, path: str) -> None:
-        """
-        Deserialize the index from a JSON file at `path`.
-        Replaces the current in-memory index with loaded data.
-        """
-        with open(path, "r") as file:
+    def load(self, path):
+        """Replace the in-memory index with data loaded from JSON."""
+        with open(path, "r", encoding="utf-8") as file:
             data = json.load(file)
-
         self.main_index = data["main_index"]
         self.question_store = data["question_store"]
+
+    # ────────────────────────────────────────────────────────────────────
+    # Diagnostics
+    # ────────────────────────────────────────────────────────────────────
+
+    def __len__(self):
+        """Number of unique questions in the store."""
+        return len(self.question_store)
+
+    def key_count(self):
+        """Number of composite keys in the index."""
+        return len(self.main_index)
