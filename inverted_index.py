@@ -7,7 +7,8 @@ year filtering, and JSON persistence.
 """
 
 import json
-from typing import Any, Dict, List
+import os
+from typing import Any, Dict, List, Optional, Set
 
 
 class InvertedIndex:
@@ -20,8 +21,8 @@ class InvertedIndex:
     """
 
     def __init__(self) -> None:
-        self.main_index = {}
-        self.question_store = {}
+        self.main_index: Dict[str, List[str]] = {}
+        self.question_store: Dict[str, Dict[str, Any]] = {}
 
     # ── Core Operations ──────────────────────────────────────────
 
@@ -34,65 +35,41 @@ class InvertedIndex:
         """
         question_id = record["id"]
         self.question_store[question_id] = record
-        if key not in self.main_index:  # agar main_ index mai topic ni hai to daldo
+        if key not in self.main_index:
             self.main_index[key] = []
-        if (
-            question_id not in self.main_index[key]
-        ):  # agar topic k question pool mai question exist ni krta to daldo
+        if question_id not in self.main_index[key]:
             self.main_index[key].append(question_id)
 
-    def query(
-        self, key: str
-    ) -> List[
-        Dict[str, Any]
-    ]:  # issue here, this should return the question ids, not the pdf parsing data
+    def query(self, key: str) -> List[str]:
         """
-        Return the full postings for a single composite key.
+        Return the list of Question IDs for a single composite key.
         Returns empty list if key not found.
         O(1) lookup.
         """
-        full_posting_list = []
-        if key in self.main_index:
-            for question_id in self.main_index[key]:
-                full_posting_list.append(self.question_store[question_id])
-            return full_posting_list
-
-        else:
-            return []
+        return self.main_index.get(key, [])
 
     # ── Set Operations ───────────────────────────────────────────
 
-    def union(
-        self, keys: List[str]
-    ) -> List[
-        Dict[str, Any]
-    ]:  # issue here, this should return the question ids, not the pdf parsing data
+    def union(self, keys: List[str]) -> List[str]:
         """
         Merge postings lists for multiple keys.
         Deduplicate by question id — each question appears once.
         Use case: "Give me all Kinematics OR Dynamics questions."
         O(k + n) where k = number of keys, n = total postings.
         """
-        result_question_id = set()
+        result_question_ids: Set[str] = set()
         for key in keys:
             if key in self.main_index:
-                result_question_id.update(
-                    self.main_index[key]
-                )  # this add the question ids in the set removing duplicates retaining set properties
+                result_question_ids.update(self.main_index[key])
+        return list(result_question_ids)
 
-        # remove this and return the resultant question ids as well
-        full_posting_list = []
-        for question_id in result_question_id:
-            full_posting_list.append(self.question_store[question_id])
-        return full_posting_list
-
-    def intersect(self, keys: List[str]) -> List[Dict[str, Any]]:
+    def intersect(self, keys: List[str]) -> List[str]:
         """
-        Return records present in ALL postings lists for given keys.
+        Return IDs present in ALL postings lists for given keys.
         Use case: "Give me questions tagged BOTH Kinematics AND Vectors."
         O(k × n) via set intersection on question ids.
         """
-        if keys is None or len(keys) == 0:
+        if not keys:
             return []
 
         for key in keys:
@@ -103,25 +80,40 @@ class InvertedIndex:
         for key in keys[1:]:
             result_ids.intersection_update(self.main_index[key])
 
-        # remove karna hai yeh, cuz this violates the DS thing
-        full_posting_list = []
-        for question_id in result_ids:
-            full_posting_list.append(self.question_store[question_id])
-        return full_posting_list
+        return list(result_ids)
 
-    # ── Filtering ────────────────────────────────────────────────
+    # ── Fetching & Filtering ─────────────────────────────────────
+
+    def fetch_documents(
+        self,
+        question_ids: List[str],
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Takes a list of Question IDs, retrieves their full payload from the
+        question_store, and optionally filters them by year.
+        """
+        results: List[Dict[str, Any]] = []
+        for qid in question_ids:
+            record = self.question_store.get(qid)
+            if record:
+                if year_from is not None and year_to is not None:
+                    if year_from <= record["year"] <= year_to:
+                        results.append(record)
+                else:
+                    results.append(record)
+        return results
 
     def filter_by_year(
         self, results: List[Dict[str, Any]], year_from: int, year_to: int
     ) -> List[Dict[str, Any]]:
         """
-        Filter a list of question records to only those within [year_from, year_to].
-        Applied after query/union/intersect as a post-lookup step.
-        O(n) linear scan.
+        Legacy filter method. Consider using fetch_documents instead.
         """
-        filtered_results = []
+        filtered_results: List[Dict[str, Any]] = []
         for record in results:
-            if record["year"] >= year_from and record["year"] <= year_to:
+            if year_from <= record["year"] <= year_to:
                 filtered_results.append(record)
         return filtered_results
 
@@ -132,17 +124,12 @@ class InvertedIndex:
             del self.question_store[question_id]
 
         for key in self.main_index:
-            cleaned_list = []
-            for qid in self.main_index[key]:
-                if qid != question_id:
-                    cleaned_list.append(qid)
+            cleaned_list = [qid for qid in self.main_index[key] if qid != question_id]
             self.main_index[key] = cleaned_list
 
     def save(self, path: str) -> None:
-        data = {}
-        data["main_index"] = self.main_index
-        data["question_store"] = self.question_store
-
+        data = {"main_index": self.main_index, "question_store": self.question_store}
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as file:
             json.dump(data, file, indent=4)
 

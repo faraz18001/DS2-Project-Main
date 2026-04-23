@@ -1,133 +1,136 @@
 """
-pdf_parser.py — PDF ingestion and question extraction.
+pdf_parser.py — Bounding Box (BBox) PDF ingestion and question extraction.
 """
 
 import os
 import re
-import struct
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-import pymupdf4llm
+import fitz  # Standard PyMuPDF
 
 
-def parse_paper(
-    pdf_path: str, subject_code: str, paper_type: str, year: int
-) -> List[Dict[str, Any]]:
-    # Setup directory for images
-    project_root = os.path.dirname(os.path.abspath(__file__))
+def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
+    """
+    Parses a Cambridge past paper.
+    Expects PapaCambridge naming convention: e.g., 9702_w25_qp_13.pdf
+    """
+    # 1. Parse the filename to get standard metadata
     file_name = os.path.basename(pdf_path)
-    file_name_no_ext = os.path.splitext(file_name)[0]
-    folder_for_images = os.path.join(project_root, "data", "images", file_name_no_ext)
+    name_no_ext = os.path.splitext(file_name)[0]
+    parts = name_no_ext.split("_")
 
-    if not os.path.exists(folder_for_images):
-        os.makedirs(folder_for_images)
+    if len(parts) >= 4:
+        subject_code = parts[0]  # e.g., "9702"
+        session_year = parts[1]  # e.g., "w25"
+        variant = parts[3]  # e.g., "13"
+        paper_type = f"p{variant}"  # e.g., "p13"
 
-    # Use library to get text in markdown format
-    md_content = pymupdf4llm.to_markdown(
-        pdf_path,
-        header=False,
-        footer=False,
-        write_images=True,
-        image_path=folder_for_images,
-    )
+        # Takes "w25", grabs the "25", and adds 2000 to make it 2025
+        try:
+            actual_year = 2000 + int(session_year[1:])
+        except ValueError:
+            actual_year = 2025  # Fallback
+    else:
+        print(f"Warning: Filename {file_name} does not match PapaCambridge standard.")
+        return []
 
-    # Split the markdown content into pieces based on the question number
-    # It looks for lines that have a number surrounded by ** like **1**
-    # and maybe a dash before it
-    pieces = re.split(r"\n(?:- )?\*\*(\d{1,2})\*\*\s", md_content)
+    doc = fitz.open(pdf_path)
+    questions: List[Dict[str, Any]] = []
+    current_q: Optional[Dict[str, Any]] = None
+    expected_q = 1
 
-    # The first piece is the intro/header stuff which we do not want
-    # So we start processing from the next piece
-    final_results = []
+    # Regex to catch Cambridge question starts: e.g., "1 ", "20", "3 " at the start of a block
+    q_num_pattern = re.compile(r"^(\d+)\s")
 
-    # Loop through the pieces in steps of 2
-    i = 1
-    while i < len(pieces):
-        question_number = pieces[i]
-        question_text = pieces[i + 1]
+    # Iterate through every page
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        blocks = page.get_text("blocks")
 
-        # Calculate marks
-        total_marks = 0
+        # Sort blocks top-to-bottom so we read them in order
+        blocks.sort(key=lambda b: b[1])
 
-        # Look for patterns like [2] or [ 2 marks ]
-        mark_pattern = r"\[\s*(\d+)\s*(?:marks?)?\]"
-        matches = re.findall(mark_pattern, question_text, flags=re.IGNORECASE)
+        # We will capture the full horizontal width of the page
+        page_width = page.rect.width
 
-        for found_text in matches:
-            total_marks = total_marks + int(found_text)
+        for b in blocks:
+            x0, y0, x1, y1, text, block_no, block_type = b
+            text = text.strip()
 
-        # Find images used in this question
-        images_in_question = []
-        image_pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
-        image_matches = re.findall(image_pattern, question_text)
+            # Check if this text block starts the NEXT sequential question
+            match = q_num_pattern.match(text)
+            if match and int(match.group(1)) == expected_q:
+                # Close out the previous question and save it
+                if current_q:
+                    questions.append(current_q)
 
-        image_count = 0
-        for alt_text, image_path_str in image_matches:
-            # Check if image file exists
-            original_path = image_path_str
-            if not os.path.exists(original_path):
-                original_path = os.path.join(
-                    folder_for_images, os.path.basename(image_path_str)
-                )
+                # Start tracking the new question
+                current_q = {
+                    "id": f"{subject_code}_{session_year}_{paper_type}_q{expected_q}",
+                    "subject": subject_code,
+                    "paper_type": paper_type,
+                    "session": session_year,
+                    "year": actual_year,
+                    "topic": "Unknown",
+                    "marks": 0,
+                    "pdf": os.path.abspath(pdf_path),
+                    "text": "",  # Raw text for Bag-of-Words tagger
+                    "regions": [],  # Multi-page BBox tracker!
+                }
+                expected_q += 1
 
-            if os.path.exists(original_path):
-                # Make a new, simple name: Q[number]_[count].png
-                new_name = "Q" + question_number + "_" + str(image_count) + ".png"
-                new_path = os.path.join(folder_for_images, new_name)
+            # If we are currently tracking a question, accumulate its text and BBoxes
+            if current_q:
+                current_q["text"] += text + "\n "
 
-                # Rename the file
-                os.rename(original_path, new_path)
+                # Extract marks like [2] or [ 3 ] anywhere in the text
+                mark_matches = re.findall(r"\[\s*(\d+)\s*\]", text)
+                for m in mark_matches:
+                    current_q["marks"] += int(m)
 
-                # Update the markdown text so it points to the new name
-                question_text = question_text.replace(
-                    os.path.basename(image_path_str), new_name
-                )
+                # Update Bounding Box Regions
+                # If this is the FIRST block on this page for this question, start a new rect
+                if (
+                    not current_q["regions"]
+                    or current_q["regions"][-1]["page"] != page_num
+                ):
+                    # Give it a tiny bit of vertical padding (-10 on top, +10 on bottom)
+                    current_q["regions"].append(
+                        {
+                            "page": page_num,
+                            "rect": [0, max(0, y0 - 10), page_width, y1 + 10],
+                        }
+                    )
+                else:
+                    # We are on the same page, just extend the bottom Y coordinate down
+                    current_q["regions"][-1]["rect"][3] = max(
+                        current_q["regions"][-1]["rect"][3], y1 + 10
+                    )
 
-                images_in_question.append(os.path.abspath(new_path))
-                image_count = image_count + 1
+    # Append the very last question when the document ends
+    if current_q:
+        questions.append(current_q)
 
-        # Build the question dictionary
-        question_record = {}
-        question_record["id"] = (
-            subject_code + "_" + str(year) + "_" + paper_type + "_q" + question_number
-        )
-        question_record["subject"] = subject_code
-        question_record["topic"] = "Unknown"
-        question_record["paper_type"] = paper_type
-        question_record["year"] = year
-        question_record["marks"] = total_marks
-        question_record["pdf"] = pdf_path
-        question_record["text"] = question_text
-        question_record["images"] = images_in_question
+    # Fix for Paper 1 (MCQs): If no brackets [ ] were found, it's a 1-mark question
+    for q in questions:
+        if q["marks"] == 0 and "p1" in q["paper_type"].lower():
+            q["marks"] = 1
 
-        # Add to our list
-        final_results.append(question_record)
-
-        # Move to next pair
-        i = i + 2
-
-    return final_results
+    doc.close()
+    return questions
 
 
 def parse_all_papers(papers_dir: str, subject_code: str) -> List[Dict[str, Any]]:
-    all_extracted_questions = []
+    """
+    Legacy helper to parse all papers in a directory.
+    """
+    all_extracted_questions: List[Dict[str, Any]] = []
 
     for root, folders, files in os.walk(papers_dir):
         for file in files:
             if file.endswith(".pdf"):
                 full_path = os.path.join(root, file)
-
-                # Get info from file path
-                parts = full_path.split(os.sep)
-                year_part = parts[-2]
-                file_part = parts[-1]
-
-                the_year = int(year_part)
-                the_type = file_part.split(".")[0]
-
-                questions = parse_paper(full_path, subject_code, the_type, the_year)
-
-                for q in questions:
-                    all_extracted_questions.append(q)
+                questions = parse_paper(full_path)
+                all_extracted_questions.extend(questions)
 
     return all_extracted_questions

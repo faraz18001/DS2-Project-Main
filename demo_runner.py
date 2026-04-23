@@ -2,11 +2,11 @@
 demo_runner.py — Terminal app to manage the question bank.
 """
 
-import json
 import os
 import time
 from typing import Any, Dict, List
 
+from build_index import build_master_index
 from inverted_index import InvertedIndex
 from pdf_parser import parse_paper
 from topic_mapper import build_composite_keys, load_keyword_map, tag_question
@@ -32,21 +32,11 @@ def view_tree(index: InvertedIndex) -> None:
         return
 
     # Sort keys so it looks organized
-    all_keys = []
-    for k in index.main_index:
-        all_keys.append(k)
-
-    # Sort the list the long way
-    for i in range(len(all_keys)):
-        for j in range(i + 1, len(all_keys)):
-            if all_keys[i] > all_keys[j]:
-                temp = all_keys[i]
-                all_keys[i] = all_keys[j]
-                all_keys[j] = temp
+    all_keys: List[str] = sorted(list(index.main_index.keys()))
 
     for key in all_keys:
         print("\n" + key)
-        question_ids = index.main_index[key]
+        question_ids: List[str] = index.main_index[key]
         for i in range(len(question_ids)):
             qid = question_ids[i]
             # Use connector to look like a tree
@@ -57,16 +47,20 @@ def view_tree(index: InvertedIndex) -> None:
 
 
 def search_topic(index: InvertedIndex) -> None:
-    print("\nEnter topic/key to search (e.g., 5054_Forces_paper1_part1):")
-    search_key = input(">> ")
+    # Updated to show the new key format
+    print("\nEnter topic/key to search (e.g., 9702_Kinematics_p13):")
+    search_key: str = input(">> ")
 
-    results = index.query(search_key)
+    # SRP Fix: query() now only returns IDs
+    result_ids: List[str] = index.query(search_key)
 
-    if len(results) == 0:
+    if len(result_ids) == 0:
         print("No questions found for that key.")
     else:
-        print("\nFound " + str(len(results)) + " questions:")
-        for r in results:
+        print("\nFound " + str(len(result_ids)) + " questions:")
+        for qid in result_ids:
+            # Look up the actual data in the store
+            r = index.question_store[qid]
             print("-" * 20)
             print("ID: " + r["id"])
             print("Marks: " + str(r["marks"]))
@@ -78,24 +72,25 @@ def search_topic(index: InvertedIndex) -> None:
 def add_paper(
     index: InvertedIndex, keyword_map: Dict[str, Dict[str, List[str]]]
 ) -> None:
-    print("\nEnter path to PDF file:")
-    pdf_path = input(">> ")
+    print("\nEnter path to PDF file (e.g., data/papers/9702_w25_qp_13.pdf):")
+    pdf_path: str = input(">> ")
     if not os.path.exists(pdf_path):
         print("Error: File not found.")
         return
 
-    subject = input("Enter Subject Code (e.g., 5054): ")
-    year = input("Enter Year: ")
-    paper_type = input("Enter Paper Type (e.g., paper1_part1): ")
+    # Auto-Ingestion Fix: The parser figures everything out from the filename now!
+    print("Processing paper (auto-extracting metadata from filename)...")
+    new_questions: List[Dict[str, Any]] = parse_paper(pdf_path)
 
-    print("Processing paper...")
-    new_questions = parse_paper(pdf_path, subject, paper_type, int(year))
+    if not new_questions:
+        print("Error: Could not parse paper. Check filename format.")
+        return
 
     for q in new_questions:
-        # Get topics using the mapper
-        topics = tag_question(q["text"], subject, keyword_map)
+        # Get topics using the text we extracted
+        topics: List[str] = tag_question(q["text"], q["subject"], keyword_map)
         # Create keys
-        keys = build_composite_keys(subject, topics, paper_type)
+        keys: List[str] = build_composite_keys(q["subject"], topics, q["paper_type"])
         # Put in index
         for key in keys:
             index.insert(key, q)
@@ -105,7 +100,7 @@ def add_paper(
 
 def delete_question(index: InvertedIndex) -> None:
     print("\nEnter the Question ID to delete:")
-    target_id = input(">> ")
+    target_id: str = input(">> ")
 
     if target_id not in index.question_store:
         print("Error: Question ID not found in store.")
@@ -117,45 +112,42 @@ def delete_question(index: InvertedIndex) -> None:
 
 def run_benchmark(index: InvertedIndex) -> None:
     print("\nRunning performance test...")
-    if not index.question_store:
-        print("Error: No data to benchmark.")
+    if not index.question_store or not index.main_index:
+        print("Error: No data to benchmark. Add a paper first.")
         return
 
     # Get a key that actually exists
-    target_key = ""
-    for k in index.main_index:
-        target_key = k
-        break
+    target_key: str = list(index.main_index.keys())[0]
 
-    subject = "5054"
-    # Find a topic from the key
-    topic = target_key.split("_")[1]
-    ptype = target_key.split("_")[2] + "_" + target_key.split("_")[3]
+    # Key Splitting Fix: New keys only have 3 parts (Subject_Topic_PaperType)
+    parts: List[str] = target_key.split("_")
+    subject: str = parts[0]
+    topic: str = parts[1]
+    ptype: str = parts[2]
 
-    all_records = []
+    all_records: List[Dict[str, Any]] = []
     for qid in index.question_store:
         all_records.append(index.question_store[qid])
 
-    loops = 1000
+    loops: int = 1000
 
     # Test Inverted Index
-    start_time = time.time()
+    start_time: float = time.time()
     for i in range(loops):
         _ = index.query(target_key)
-    end_time = time.time()
-    index_total = end_time - start_time
+    end_time: float = time.time()
+    index_total: float = end_time - start_time
 
     # Test Naive Scan
     start_time = time.time()
     for i in range(loops):
-        matches = []
+        matches: List[Dict[str, Any]] = []
         for r in all_records:
             if r["subject"] == subject and r["paper_type"] == ptype:
-                # This is a bit simplified but shows the point
                 if "text" in r and topic.lower() in r["text"].lower():
                     matches.append(r)
     end_time = time.time()
-    naive_total = end_time - start_time
+    naive_total: float = end_time - start_time
 
     print("Results over " + str(loops) + " runs:")
     print("Inverted Index Search: " + format(index_total, ".5f") + " seconds")
@@ -167,25 +159,29 @@ def run_benchmark(index: InvertedIndex) -> None:
 
 
 def main() -> None:
-    index_file = "physics_master_index.json"
-    keyword_file = "data/keywords/keyword_map.json"
+    # Updated to match your new index folder structure
+    index_file_path: str = "data/index/physics_master_index.json"
+    keyword_file_path: str = "data/keywords/keyword_map.json"
+    papers_pool_path: str = "data/papers/qp"
 
     # Create object
-    bank_index = InvertedIndex()
+    bank_index: InvertedIndex = InvertedIndex()
 
     # Load data if it exists
-    if os.path.exists(index_file):
+    if os.path.exists(index_file_path):
         print("Loading existing index...")
-        bank_index.load(index_file)
+        bank_index.load(index_file_path)
     else:
         print("Starting with a fresh index.")
+        build_master_index(papers_pool_path, keyword_file_path)
+        bank_index.load(index_file_path)
 
     # Load keywords
-    kw_map = load_keyword_map(keyword_file)
+    kw_map: Dict[str, Dict[str, List[str]]] = load_keyword_map(keyword_file_path)
 
     while True:
         show_menu()
-        choice = input("Select an option: ")
+        choice: str = input("Select an option: ")
 
         if choice == "1":
             view_tree(bank_index)
@@ -198,8 +194,8 @@ def main() -> None:
         elif choice == "5":
             run_benchmark(bank_index)
         elif choice == "0":
-            print("Saving changes to " + index_file + "...")
-            bank_index.save(index_file)
+            print("Saving changes to " + index_file_path + "...")
+            bank_index.save(index_file_path)
             print("Done. Goodbye!")
             break
         else:

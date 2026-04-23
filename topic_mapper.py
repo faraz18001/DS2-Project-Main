@@ -68,7 +68,7 @@ def tag_question(
     topics_for_subject = keyword_map[subject_code]
 
     # Score each topic by counting keyword hits
-    scores = {}
+    scores: Dict[str, int] = {}
     for topic, keywords in topics_for_subject.items():
         count = 0
         for keyword in keywords:
@@ -95,9 +95,10 @@ def tag_question(
     best_score = ranked[0][1]
     result = [ranked[0][0]]
 
-    # Include a second topic only if it scores at least 60% of the best
-    if len(ranked) > 1 and ranked[1][1] >= best_score * 0.6:
-        result.append(ranked[1][0])
+    # Include subsequent topics only if they score at least 60% of the best
+    for item in ranked[1:]:
+        if item[1] >= best_score * 0.6:
+            result.append(item[0])
 
     return result
 
@@ -119,7 +120,7 @@ def build_composite_keys(
     Returns:
         list of composite key strings.
     """
-    keys = []
+    keys: List[str] = []
     for topic in topics:
         keys.append(f"{subject_code}_{topic}_{paper_type}")
     return keys
