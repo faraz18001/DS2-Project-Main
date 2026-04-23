@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Past Paper Worksheet Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <h1>Past Paper Worksheet Generator</h1>
+      <p>Build a custom worksheet from O/A-Level past papers. Filter by topic, year and mark count — download a clean, annotatable PDF.</p>
+    </header>
+
+    <form action="{{ url_for('generate') }}" method="POST" class="gen-form">
+
+      <div class="field">
+        <label for="subject">Subject</label>
+        <select name="subject" id="subject" required>
+          {% for code, name in subjects.items() %}
+            <option value="{{ code }}">{{ name }} ({{ code }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Topics <span class="hint">(pick one or more)</span></label>
+        <div class="topics-wrap">
+          {% for subject_code, topics in topic_map.items() %}
+            <div class="topic-group" data-subject="{{ subject_code }}">
+              {% if topics %}
+                {% for topic in topics %}
+                  <label class="chip">
+                    <input type="checkbox" name="topics" value="{{ topic }}">
+                    <span>{{ topic }}</span>
+                  </label>
+                {% endfor %}
+              {% else %}
+                <p class="muted">No topics mapped for this subject yet — add keywords to <code>data/keywords/keyword_map.json</code>.</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="paper_type">Paper type</label>
+          <select name="paper_type" id="paper_type">
+            {% for pt in paper_types %}
+              <option value="{{ pt }}">{{ pt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="year_from">Year from</label>
+          <input type="number" name="year_from" id="year_from" value="2023" min="2000" max="2026">
+        </div>
+        <div class="field">
+          <label for="year_to">Year to</label>
+          <input type="number" name="year_to" id="year_to" value="2025" min="2000" max="2026">
+        </div>
+        <div class="field">
+          <label for="target_marks">Target marks</label>
+          <input type="number" name="target_marks" id="target_marks" value="30" min="5" max="200">
+        </div>
+      </div>
+
+      <button type="submit" class="primary">Generate worksheet</button>
+      <a href="{{ url_for('rebuild') }}" class="secondary">Rebuild index</a>
+    </form>
+
+    <footer class="foot">
+      CS201 Data Structures II · Inverted Index · 0/1 Knapsack · PyMuPDF
+    </footer>
+  </main>
+
+  <script>
+    const subjectEl = document.getElementById('subject');
+    const groups = document.querySelectorAll('.topic-group');
+    function update() {
+      const s = subjectEl.value;
+      groups.forEach(g => {
+        const on = g.dataset.subject === s;
+        g.classList.toggle('active', on);
+        if (!on) g.querySelectorAll('input').forEach(i => i.checked = false);
+      });
+    }
+    subjectEl.addEventListener('change', update);
+    update();
+  </script>
+</body>
+</html>

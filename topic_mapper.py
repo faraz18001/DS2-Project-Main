@@ -8,10 +8,9 @@ syllabuses and stored as JSON files.
 
 import json
 import re
-from typing import Any, Dict, List
 
 
-def load_keyword_map(path: str) -> Dict[str, Dict[str, List[str]]]:
+def load_keyword_map(path):
     """
     Load the keyword-to-topic mapping JSON file.
 
@@ -34,11 +33,8 @@ def load_keyword_map(path: str) -> Dict[str, Dict[str, List[str]]]:
         return json.load(f)
 
 
-def tag_question(
-    question_text: str, subject_code: str, keyword_map: Dict[str, Dict[str, List[str]]]
-) -> List[str]:
+def tag_question(question_text, subject_code, keyword_map):
     """
-    based on "bag of words text classification" algorithm
     Assign one or more topic labels to a question based on keyword frequency.
 
     Steps:
@@ -61,8 +57,8 @@ def tag_question(
 
     # Normalize: lowercase, strip markdown formatting and punctuation
     normalized = question_text.lower()
-    normalized = re.sub(r"[*_#\[\]()!]", " ", normalized)  # strip markdown
-    normalized = re.sub(r"[^a-z0-9\s-]", " ", normalized)  # keep only alphanum
+    normalized = re.sub(r'[*_#\[\]()!]', ' ', normalized)   # strip markdown
+    normalized = re.sub(r'[^a-z0-9\s-]', ' ', normalized)   # keep only alphanum
     words = normalized.split()
 
     topics_for_subject = keyword_map[subject_code]
@@ -75,7 +71,7 @@ def tag_question(
             # Keywords can be multi-word (e.g. "specific heat"), so check
             # against the full normalized text for those, and against the
             # word list for single-word keywords.
-            if " " in keyword:
+            if ' ' in keyword:
                 # Multi-word keyword: search in full text
                 count += normalized.count(keyword.lower())
             else:
@@ -102,9 +98,7 @@ def tag_question(
     return result
 
 
-def build_composite_keys(
-    subject_code: str, topics: List[str], paper_type: str
-) -> List[str]:
+def build_composite_keys(subject_code, topics, paper_type):
     """
     Construct composite index keys from subject, topics, and paper type.
 
