@@ -1,36 +1,129 @@
 {
-    "5054": {
-        "Measurement": ["measure", "unit", "prefix", "error", "accuracy", "precision", "instrument", "reading", "scale", "uncertainty", "vernier", "micrometer", "caliper", "scalar", "vector", "zero error"],
-        "Kinematics": ["velocity", "acceleration", "displacement", "speed", "distance", "time", "gradient", "slope", "graph", "motion", "deceleration", "free fall", "terminal velocity", "rest", "constant speed"],
-        "Forces": ["force", "forces", "newton", "weight", "friction", "tension", "moment", "moments", "torque", "equilibrium", "pivot", "resultant", "balanced", "unbalanced", "spring", "hooke", "extension", "load", "pressure", "density", "mass", "inertia", "centre of gravity", "elastic limit"],
-        "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt", "conservation", "energy", "gravitational potential", "elastic potential", "renewable", "non-renewable"],
-        "Thermal Physics": ["temperature", "heat", "thermal", "conduction", "convection", "radiation", "specific heat", "boiling", "melting", "evaporation", "latent", "expansion", "thermometer", "celsius", "kelvin", "internal energy", "state", "solid", "liquid", "gas", "freezing", "condensation"],
-        "Waves": ["wave", "waves", "frequency", "wavelength", "amplitude", "oscillation", "sound", "light", "diffraction", "refraction", "reflection", "lens", "mirror", "prism", "spectrum", "electromagnetic", "transverse", "longitudinal", "period", "ultrasound", "echo", "pitch", "loudness", "focal length", "real image", "virtual image", "critical angle", "total internal reflection"],
-        "Electricity": ["current", "voltage", "resistance", "circuit", "circuits", "ohm", "series", "parallel", "cell", "battery", "wire", "resistor", "ammeter", "voltmeter", "diode", "thermistor", "ldr", "potential divider", "electromotive", "emf", "charge", "coulomb", "static", "electrostatic", "electron", "p.d.", "potential difference"],
-        "Magnetism": ["magnetic", "field", "electromagnet", "motor", "generator", "induced", "solenoid", "compass", "relay", "transformer", "induction", "alternating", "direct current", "a.c.", "d.c.", "fleming", "left hand rule", "right hand rule", "north pole", "south pole", "magnetic flux"],
-        "Nuclear Physics": ["nucleus", "atom", "proton", "neutron", "electron", "radioactive", "decay", "half-life", "alpha", "beta", "gamma", "isotope", "nucleon", "atomic number", "mass number", "fission", "fusion", "background radiation", "geiger", "rutherford", "plum pudding"],
-        "Space Physics": ["planet", "moon", "sun", "solar system", "orbit", "galaxy", "universe", "star", "light-year", "red-shift", "cosmic microwave background", "hubble", "big bang", "dwarf", "supernova", "black hole", "protostar", "nebula"]
-    },
     "9702": {
-        "Physical Quantities & Units": ["base unit", "derived unit", "homogeneous", "scalar", "vector", "uncertainty", "absolute", "fractional", "percentage", "random error", "systematic error", "precision", "accuracy", "cathode-ray oscilloscope", "cro"],
-        "Kinematics": ["displacement", "velocity", "acceleration", "speed", "distance", "gradient", "area under graph", "free fall", "projectile", "trajectory", "horizontal component", "vertical component"],
-        "Dynamics": ["momentum", "mass", "weight", "force", "newton", "impulse", "elastic collision", "inelastic collision", "conservation of momentum", "center of mass"],
-        "Forces, Density & Pressure": ["upthrust", "pressure", "density", "torque", "couple", "moment", "equilibrium", "coplanar", "archimedes"],
-        "Work, Energy & Power": ["work done", "kinetic energy", "potential energy", "efficiency", "power", "conservative"],
-        "Deformation of Solids": ["stress", "strain", "young modulus", "elastic", "plastic", "hooke", "spring constant", "extension", "limit of proportionality", "ultimate tensile stress"],
-        "Waves": ["progressive", "transverse", "longitudinal", "amplitude", "phase", "period", "frequency", "wavelength", "intensity", "doppler", "polarization", "polaroid"],
-        "Superposition": ["stationary wave", "standing wave", "node", "antinode", "diffraction", "interference", "coherence", "path difference", "phase difference", "double-slit", "young's", "grating", "fringe"],
-        "Electricity": ["current", "charge", "coulomb", "potential difference", "emf", "resistance", "ohm", "resistivity", "drift velocity", "mean drift"],
-        "D.C. Circuits": ["series", "parallel", "kirchhoff", "potential divider", "internal resistance", "terminal p.d.", "potentiometer", "galvanometer"],
-        "Particle Physics": ["alpha", "beta", "gamma", "decay", "isotope", "nucleon", "lepton", "hadron", "quark", "up", "down", "strange", "meson", "baryon", "neutrino", "antineutrino", "positron", "antimatter"],
-        "Motion in a Circle": ["radian", "angular velocity", "centripetal", "circumference", "period"],
-        "Gravitational Fields": ["gravitational", "newton's law of gravitation", "point mass", "field strength", "orbit", "geostationary", "potential"],
-        "Temperature & Ideal Gases": ["thermal equilibrium", "absolute zero", "kelvin", "thermodynamic", "specific heat capacity", "specific latent heat", "ideal gas", "mole", "avogadro", "boyle", "charles", "kinetic theory", "mean square speed", "root mean square"],
-        "Oscillations": ["simple harmonic motion", "shm", "angular frequency", "restoring force", "damping", "resonance", "natural frequency", "forced oscillation"],
-        "Electric Fields & Capacitance": ["electric field", "uniform field", "coulomb's law", "permittivity", "capacitor", "farad", "dielectric", "time constant", "exponential discharge"],
-        "Magnetic Fields & Electromagnetism": ["magnetic flux density", "tesla", "hall effect", "hall probe", "fleming", "force on conductor", "force on charge", "lorentz", "electromagnetic induction", "faraday", "lenz", "weber", "alternating current", "rms", "transformer", "rectification", "smoothing"],
-        "Quantum Physics": ["photon", "planck", "quantum", "photoelectric", "work function", "threshold frequency", "de broglie", "wave-particle duality", "energy level", "emission spectrum", "absorption spectrum", "band"],
-        "Nuclear & Medical Imaging": ["mass defect", "binding energy", "mass-energy", "e=mc2", "radioactive decay", "decay constant", "activity", "becquerel", "exponential decay", "x-ray", "attenuation", "contrast", "ct scan", "ultrasound", "acoustic impedance", "piezo-electric", "pet", "tracer", "annihilation"],
-        "Astronomy & Cosmology": ["luminosity", "radiant flux", "standard candle", "wien", "stefan-boltzmann", "star", "light-year", "parsec", "hubble", "red-shift", "big bang"]
+        "AS": {
+            "Physical quantities and units": ["base unit", "derived unit", "homogeneous", "scalar", "vector", "uncertainty", "absolute", "fractional", "percentage", "random error", "systematic error", "precision", "accuracy", "cathode-ray oscilloscope", "cro"],
+            "Kinematics": ["displacement", "velocity", "acceleration", "speed", "distance", "gradient", "area under graph", "free fall", "projectile", "trajectory", "horizontal component", "vertical component"],
+            "Dynamics": ["momentum", "mass", "weight", "force", "newton", "impulse", "elastic collision", "inelastic collision", "conservation of momentum", "center of mass"],
+            "Forces density and pressure": ["upthrust", "pressure", "density", "torque", "couple", "moment", "equilibrium", "coplanar", "archimedes"],
+            "Work energy and power": ["work done", "kinetic energy", "potential energy", "efficiency", "power", "conservative", "joule", "watt"],
+            "Deformation of solids": ["stress", "strain", "young modulus", "elastic", "plastic", "hooke", "spring constant", "extension", "limit of proportionality", "ultimate tensile stress"],
+            "Waves": ["progressive", "transverse", "longitudinal", "amplitude", "phase", "period", "frequency", "wavelength", "intensity", "doppler", "polarization", "polaroid"],
+            "Superposition": ["stationary wave", "standing wave", "node", "antinode", "diffraction", "interference", "coherence", "path difference", "phase difference", "double-slit", "young's", "grating", "fringe"],
+            "Electricity": ["current", "charge", "coulomb", "potential difference", "emf", "resistance", "ohm", "resistivity", "drift velocity", "mean drift"],
+            "D.C. circuits": ["series", "parallel", "kirchhoff", "potential divider", "internal resistance", "terminal p.d.", "potentiometer", "galvanometer"],
+            "Particle physics": ["alpha", "beta", "gamma", "isotope", "nucleon", "lepton", "hadron", "quark", "up", "down", "strange", "meson", "baryon", "neutrino", "antineutrino", "positron", "antimatter"]
+        },
+        "A2": {
+            "Motion in a circle": ["radian", "angular velocity", "centripetal", "circumference", "period"],
+            "Gravitational fields": ["gravitational", "newton's law of gravitation", "point mass", "field strength", "orbit", "geostationary", "potential"],
+            "Temperature": ["thermal equilibrium", "absolute zero", "kelvin", "thermodynamic", "celsius"],
+            "Ideal gases": ["specific heat capacity", "specific latent heat", "ideal gas", "mole", "avogadro", "boyle", "charles", "kinetic theory", "mean square speed", "root mean square"],
+            "Thermodynamics": ["internal energy", "first law of thermodynamics", "isothermal", "adiabatic"],
+            "Oscillations": ["simple harmonic motion", "shm", "angular frequency", "restoring force", "damping", "resonance", "natural frequency", "forced oscillation"],
+            "Electric fields": ["electric field", "uniform field", "coulomb's law", "permittivity"],
+            "Capacitance": ["capacitor", "farad", "dielectric", "time constant", "exponential discharge", "capacitance", "energy stored"],
+            "Magnetic fields": ["magnetic flux density", "tesla", "hall effect", "hall probe", "fleming", "force on conductor", "force on charge", "lorentz", "electromagnet"],
+            "Electromagnetic induction": ["electromagnetic induction", "faraday", "lenz", "weber", "magnetic flux", "flux linkage"],
+            "Alternating currents": ["alternating current", "rms", "transformer", "rectification", "smoothing", "peak value", "diode bridge"],
+            "Quantum physics": ["photon", "planck", "quantum", "photoelectric", "work function", "threshold frequency", "de broglie", "wave-particle duality", "energy level", "emission spectrum", "absorption spectrum", "band"],
+            "Nuclear physics": ["mass defect", "binding energy", "mass-energy", "e=mc2", "radioactive decay", "decay constant", "activity", "becquerel", "exponential decay", "half-life"],
+            "Medical physics": ["x-ray", "attenuation", "contrast", "ct scan", "ultrasound", "acoustic impedance", "piezo-electric", "pet", "tracer", "annihilation"],
+            "Astronomy and cosmology": ["luminosity", "radiant flux", "standard candle", "wien", "stefan-boltzmann", "star", "light-year", "parsec", "hubble", "red-shift", "big bang"]
+        }
+    },
+    "5054": {
+        "ALL": {
+            "Measurement": ["measure", "unit", "prefix", "error", "accuracy", "precision", "instrument", "reading", "scale", "uncertainty", "vernier", "micrometer", "caliper", "scalar", "vector", "zero error"],
+            "Kinematics": ["velocity", "acceleration", "displacement", "speed", "distance", "time", "gradient", "slope", "graph", "motion", "deceleration", "free fall", "terminal velocity", "rest", "constant speed"],
+            "Forces": ["force", "forces", "newton", "weight", "friction", "tension", "moment", "moments", "torque", "equilibrium", "pivot", "resultant", "balanced", "unbalanced", "spring", "hooke", "extension", "load", "pressure", "density", "mass", "inertia", "centre of gravity", "elastic limit"],
+            "Energy": ["work", "kinetic", "potential", "power", "efficiency", "joule", "watt", "conservation", "energy", "gravitational potential", "elastic potential", "renewable", "non-renewable"],
+            "Thermal Physics": ["temperature", "heat", "thermal", "conduction", "convection", "radiation", "specific heat", "boiling", "melting", "evaporation", "latent", "expansion", "thermometer", "celsius", "kelvin", "internal energy", "state", "solid", "liquid", "gas", "freezing", "condensation"],
+            "Waves and Light": ["wave", "waves", "frequency", "wavelength", "amplitude", "oscillation", "sound", "light", "diffraction", "refraction", "reflection", "lens", "mirror", "prism", "spectrum", "electromagnetic", "transverse", "longitudinal", "period", "ultrasound", "echo", "pitch", "loudness", "focal length", "real image", "virtual image", "critical angle", "total internal reflection"],
+            "Electricity": ["current", "voltage", "resistance", "circuit", "circuits", "ohm", "series", "parallel", "cell", "battery", "wire", "resistor", "ammeter", "voltmeter", "diode", "thermistor", "ldr", "potential divider", "electromotive", "emf", "charge", "coulomb", "static", "electrostatic", "electron", "p.d.", "potential difference"],
+            "Magnetism": ["magnetic", "field", "electromagnet", "motor", "generator", "induced", "solenoid", "compass", "relay", "transformer", "induction", "alternating", "direct current", "a.c.", "d.c.", "fleming", "left hand rule", "right hand rule", "north pole", "south pole", "magnetic flux"],
+            "Nuclear Physics": ["nucleus", "atom", "proton", "neutron", "electron", "radioactive", "decay", "half-life", "alpha", "beta", "gamma", "isotope", "nucleon", "atomic number", "mass number", "fission", "fusion", "background radiation", "geiger", "rutherford", "plum pudding"],
+            "Space Physics": ["planet", "moon", "sun", "solar system", "orbit", "galaxy", "universe", "star", "light-year", "red-shift", "cosmic microwave background", "hubble", "big bang", "dwarf", "supernova", "black hole", "protostar", "nebula"]
+        }
+    },
+    "9701": {
+        "AS": {
+            "Moles and stoichiometry": ["mole", "avogadro", "empirical formula", "molecular formula", "stoichiometry", "titration", "concentration", "limiting reactant"],
+            "Atomic structure": ["proton", "neutron", "electron", "isotope", "ionization energy", "electron configuration", "subshell", "orbital"],
+            "Chemical bonding": ["ionic", "covalent", "dative", "metallic", "electronegativity", "dipole", "van der waals", "hydrogen bonding", "intermolecular", "hybridization", "vsepr"],
+            "States of matter": ["ideal gas", "pv=nrt", "lattice", "vapor pressure", "melting point", "boiling point"],
+            "Chemical energetics": ["enthalpy", "exothermic", "endothermic", "hess's law", "bond energy", "calorimetry", "standard enthalpy"],
+            "Electrochemistry (AS)": ["oxidation", "reduction", "redox", "oxidation number", "half-equation"],
+            "Equilibria": ["reversible", "dynamic equilibrium", "le chatelier", "kc", "kp", "haber process", "contact process", "bronsted-lowry", "conjugate acid", "ph"],
+            "Reaction kinetics": ["collision theory", "activation energy", "catalyst", "boltzmann distribution", "rate of reaction"],
+            "Periodicity": ["period 3", "melting point trend", "ionization energy trend", "oxide", "chloride", "hydrolysis"],
+            "Group 2": ["alkaline earth", "thermal decomposition", "solubility", "hydroxide", "sulfate"],
+            "Group 17": ["halogen", "volatility", "oxidizing agent", "halide", "silver nitrate", "disproportionation"],
+            "Nitrogen and sulfur": ["ammonia", "ammonium", "nitrogen oxide", "catalytic converter", "sulfur dioxide", "acid rain"],
+            "Organic Chemistry Basics": ["homologous", "functional group", "isomerism", "stereoisomerism", "chiral", "optical isomer", "nucleophile", "electrophile", "free radical"],
+            "Hydrocarbons": ["alkane", "alkene", "cracking", "combustion", "substitution", "addition", "markovnikov", "polymerization"],
+            "Halogenoalkanes": ["halogenoalkane", "nucleophilic substitution", "elimination", "sn1", "sn2", "cfc"],
+            "Alcohols and Carboxylic acids": ["alcohol", "primary", "secondary", "tertiary", "oxidation", "dehydration", "esterification", "carboxylic acid"],
+            "Carbonyl compounds": ["aldehyde", "ketone", "2,4-dnph", "tollens", "fehling", "nucleophilic addition"]
+        },
+        "A2": {
+            "Chemical energetics (A2)": ["lattice energy", "born-haber", "electron affinity", "hydration", "solution", "entropy", "gibbs free energy", "spontaneous"],
+            "Electrochemistry (A2)": ["standard electrode potential", "cell potential", "nernst", "electrolysis", "faraday's law"],
+            "Equilibria (A2)": ["buffer", "solubility product", "ksp", "common ion effect", "partition coefficient"],
+            "Reaction kinetics (A2)": ["rate equation", "order of reaction", "rate constant", "half-life", "rate-determining step"],
+            "Transition elements": ["transition metal", "variable oxidation state", "complex ion", "ligand", "coordination number", "color", "d-orbital splitting"],
+            "Arenes": ["benzene", "delocalized", "electrophilic substitution", "halogenation", "nitration", "friedel-crafts"],
+            "Nitrogen compounds": ["amine", "amide", "amino acid", "protein", "peptide", "diazonium"],
+            "Polymerisation": ["condensation polymer", "polyester", "polyamide", "degradable"],
+            "Analytical chemistry": ["chromatography", "nmr", "carbon-13", "proton nmr", "chemical shift", "mass spectrometry"]
+        }
+    },
+    "5070": {
+        "ALL": {
+            "Experimental chemistry": ["apparatus", "pipette", "burette", "chromatography", "rf value", "filtration", "crystallization", "distillation"],
+            "Kinetic particle theory": ["solid", "liquid", "gas", "diffusion", "kinetic theory", "melting", "boiling"],
+            "Atomic structure and Bonding": ["atom", "proton", "neutron", "electron", "isotope", "ionic", "covalent", "metallic", "macromolecule", "allotrope"],
+            "Stoichiometry": ["mole", "avogadro", "molar volume", "concentration", "empirical formula", "equation"],
+            "Electricity and chemistry": ["electrolysis", "electrolyte", "anode", "cathode", "electroplating"],
+            "Chemical energetics": ["exothermic", "endothermic", "enthalpy", "activation energy"],
+            "Chemical reactions": ["rate of reaction", "catalyst", "reversible", "equilibrium", "redox", "oxidation", "reduction"],
+            "Acids, bases and salts": ["acid", "base", "alkali", "ph", "indicator", "salt", "neutralization", "precipitation"],
+            "The Periodic Table": ["period", "group", "alkali metal", "halogen", "noble gas", "transition element"],
+            "Metals": ["reactivity series", "extraction", "blast furnace", "alloy", "steel", "rusting", "corrosion", "sacrificial protection"],
+            "Atmosphere and Environment": ["air", "oxygen", "nitrogen", "pollutant", "carbon monoxide", "sulfur dioxide", "global warming", "greenhouse gas", "water treatment"],
+            "Organic chemistry": ["homologous series", "alkane", "alkene", "alcohol", "carboxylic acid", "ester", "polymer", "macromolecule", "addition polymer", "condensation polymer"]
+        }
+    },
+    "9709": {
+        "AS": {
+            "Pure 1 - Quadratics and Functions": ["quadratic", "discriminant", "completing the square", "function", "domain", "range", "composite function", "inverse function"],
+            "Pure 1 - Coordinate Geometry": ["equation of line", "gradient", "mid-point", "perpendicular bisector", "circle equation"],
+            "Pure 1 - Circular Measure": ["radian", "arc length", "sector area"],
+            "Pure 1 - Trigonometry": ["sine", "cosine", "tangent", "exact value", "trigonometric identity", "principal value"],
+            "Pure 1 - Series": ["arithmetic progression", "geometric progression", "binomial expansion", "sum to infinity"],
+            "Pure 1 - Differentiation": ["derivative", "gradient function", "chain rule", "stationary point", "maximum", "minimum", "increasing", "decreasing"],
+            "Pure 1 - Integration": ["integral", "constant of integration", "definite integral", "area under curve", "volume of revolution"],
+            "Mechanics - Kinematics": ["displacement", "velocity", "acceleration", "constant acceleration", "suvat", "velocity-time graph"],
+            "Mechanics - Forces and Equilibrium": ["force", "resultant", "components", "equilibrium", "friction", "limiting friction", "coefficient of friction"],
+            "Mechanics - Newton's Laws": ["newton's first law", "newton's second law", "newton's third law", "f=ma", "connected particles"],
+            "Probability and Statistics 1": ["permutation", "combination", "factorial", "probability", "mutually exclusive", "independent events", "conditional probability", "tree diagram", "discrete random variable", "expectation", "variance", "normal distribution", "standard normal", "z-score"]
+        },
+        "A2": {
+            "Pure 3 - Algebra and Logarithms": ["modulus", "polynomial", "remainder theorem", "factor theorem", "partial fraction", "logarithm", "exponential", "ln"],
+            "Pure 3 - Trigonometry": ["secant", "cosecant", "cotangent", "compound angle", "double angle", "Rcos", "Rsin"],
+            "Pure 3 - Differentiation": ["product rule", "quotient rule", "parametric differentiation", "implicit differentiation"],
+            "Pure 3 - Integration": ["integration by substitution", "integration by parts", "trapezium rule"],
+            "Pure 3 - Differential Equations": ["differential equation", "separable", "initial condition", "boundary condition"],
+            "Pure 3 - Complex Numbers": ["complex number", "imaginary", "argand diagram", "modulus-argument", "locus"],
+            "Pure 3 - Vectors": ["vector", "magnitude", "scalar product", "dot product", "perpendicular vectors", "vector equation of line", "intersection"],
+            "Probability and Statistics 2": ["poisson distribution", "continuous random variable", "probability density function", "linear combination", "hypothesis testing", "null hypothesis", "alternative hypothesis", "significance level", "type i error", "type ii error"]
+        }
+    },
+    "4024": {
+        "ALL": {
+            "Number and Algebra": ["integer", "prime", "factor", "multiple", "hcf", "lcm", "directed number", "fraction", "decimal", "percentage", "ratio", "proportion", "indices", "standard form", "estimation", "upper bound", "lower bound", "equation", "inequality", "sequence", "formula", "factorize", "simultaneous equations", "quadratic formula"],
+            "Geometry and Trigonometry": ["angle", "parallel", "polygon", "circle theorem", "tangent", "chord", "symmetry", "similarity", "congruence", "pythagoras", "sine rule", "cosine rule", "elevation", "depression", "bearing", "area", "volume", "perimeter", "circumference", "surface area", "prism", "cylinder", "cone", "sphere", "pyramid"],
+            "Coordinate Geometry and Matrices": ["coordinate", "gradient", "y-intercept", "matrix", "determinant", "inverse matrix", "transformation", "translation", "reflection", "rotation", "enlargement", "vector", "column vector", "magnitude"],
+            "Statistics and Probability": ["tally", "pictogram", "pie chart", "bar chart", "histogram", "cumulative frequency", "mean", "median", "mode", "scatter diagram", "line of best fit", "probability", "tree diagram", "venn diagram", "set"]
+        }
     }
 }
