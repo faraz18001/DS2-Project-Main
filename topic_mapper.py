@@ -235,6 +235,7 @@ def tag_question(
     # Include subsequent topics only if they score ≥ 60% of the top topic
     for topic_name, score in ranked[1:]:
         
+
         if score >= best_score * 0.6:
             result.append(topic_name)
 

@@ -5,100 +5,123 @@ Takes a list of selected question records and compiles them into
 a clean, annotatable A4 PDF using PyMuPDF's vector-preserving
 show_pdf_page() stamping method.
 """
-
+import os
+import fitz
 from typing import Any, Dict, List, Tuple
 
-import fitz
+# A4 dimensions in PDF points (1 point = 1/72 inch)
+PAGE_W = 595.0
+PAGE_H = 842.0
+MARGIN = 50.0   # left/right/top/bottom margin on the worksheet
 
 
 def generate_worksheet(
-    selected_questions: List[Dict[str, Any]], output_path: str, title: str = "Worksheet"
+    selected_questions: List[Dict[str, Any]],
+    output_path: str,
+    title: str = "Worksheet"
 ) -> str:
-    """
-    Build the final A4 PDF worksheet from selected questions.
 
-    Steps:
-    1. Create a blank PDF with an A4 page.
-    2. Stamp a header (title, date, total marks) at the top.
-    3. Initialize a Y-cursor below the header.
-    4. For each question:
-       a. Open the source PDF and locate the page + bbox.
-       b. Use show_pdf_page() to stamp the question region onto the
-          worksheet at the current Y-cursor position — preserves vectors.
-       c. Add a question label (Q1, Q2...) and source footer.
-       d. Add proportional blank answer space (scaled by marks).
-       e. Advance Y-cursor; if it exceeds page height, start a new page.
-    5. Save the completed PDF to output_path.
+    # ── 1. Create blank A4 worksheet ──────────────────────────────
+    ws_doc = fitz.open()   # new empty document
 
-    Args:
-        selected_questions: list of question record dicts (ordered).
-        output_path: str, where to save the generated PDF.
-        title: str, worksheet title for the header.
+    ws_page = ws_doc.new_page(width=PAGE_W, height=PAGE_H)
+    y_cursor = _stamp_header(ws_page, title, sum(q["marks"] for q in selected_questions))
 
-    Returns:
-        str, the output file path.
-    """
-    pass
+    # ── 2. Stamp each question ────────────────────────────────────
+    for q_num, question in enumerate(selected_questions, start=1):
+        ws_page, y_cursor = _stamp_question(
+            ws_doc, ws_page, y_cursor, question, q_num
+        )
+
+    # ── 3. Save ───────────────────────────────────────────────────
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    ws_doc.save(output_path)
+    ws_doc.close()
+    return output_path
 
 
 def _stamp_header(page: fitz.Page, title: str, total_marks: int) -> float:
-    """
-    Draw the worksheet header on the first page.
+    """Draw the worksheet title and return the y position just below it."""
+    
+    # fitz.Page.insert_text(point, text, fontsize, color)
+    # point = (x, y) where y is the BASELINE of the text
+    page.insert_text(
+        (MARGIN, MARGIN + 20),
+        title,
+        fontsize=16,
+        color=(0, 0, 0)   # RGB 0-1 float, not 0-255
+    )
+    page.insert_text(
+        (MARGIN, MARGIN + 38),
+        f"Total Marks: {total_marks}",
+        fontsize=10,
+        color=(0.3, 0.3, 0.3)
+    )
 
-    Includes: title text, date, total marks, a horizontal rule.
+    # Draw a horizontal line using draw_line(p1, p2) then finish_shape()
+    page.draw_line(
+        fitz.Point(MARGIN, MARGIN + 48),
+        fitz.Point(PAGE_W - MARGIN, MARGIN + 48)
+    )
 
-    Args:
-        page: fitz.Page object (the current worksheet page).
-        title: str, worksheet title.
-        total_marks: int, sum of marks of all questions.
-
-    Returns:
-        float, the Y-coordinate just below the header (starting cursor).
-    """
-    pass
+    return MARGIN + 65.0   # return y cursor just below the header
 
 
 def _stamp_question(
-    worksheet_doc: fitz.Document,
-    page: fitz.Page,
+    ws_doc: fitz.Document,
+    ws_page: fitz.Page,
     y_cursor: float,
     question: Dict[str, Any],
-    question_number: int,
+    q_number: int,
 ) -> Tuple[fitz.Page, float]:
-    """
-    Stamp a single question onto the worksheet at the given Y position.
 
-    Uses fitz show_pdf_page() to copy the exact vector region from the
-    source PDF onto the worksheet canvas — no rasterization.
+    src_doc = fitz.open(question["pdf"])
 
-    Also adds:
-    - Question label: "Q{n}" to the left
-    - Source footer: "[2022 P2 Q4 — Kinematics]" below the question
-    - Blank answer space proportional to the question's mark value
+    for region in question["regions"]:
+        src_page_num = region["page"]
+        src_rect = fitz.Rect(region["rect"])  # e.g. [0, 53.8, 595.2, 717.6]
 
-    Args:
-        worksheet_doc: fitz.Document, the worksheet being built.
-        page: fitz.Page, current page of the worksheet.
-        y_cursor: float, current vertical position on the page.
-        question: dict, the question record.
-        question_number: int, sequential question number (1-based).
+        # Height of this region in the source — used as-is, no scaling
+        region_height = src_rect.height       # e.g. 717.6 - 53.8 = 663.8
 
-    Returns:
-        (fitz.Page, float): possibly a new page if overflow, and the updated y_cursor.
-    """
-    pass
+        # Does this region fit on the current page?
+        if y_cursor + region_height > PAGE_H:
+            ws_page = ws_doc.new_page(width=PAGE_W, height=PAGE_H)
+            y_cursor = 0.0
 
+        # dest_rect is the SAME SIZE as src_rect → scale = 1.0
+        dest_rect = fitz.Rect(
+            0,                          # align to left edge of worksheet
+            y_cursor,
+            src_rect.width,             # same width as source (≈595)
+            y_cursor + region_height    # same height as source
+        )
+
+        ws_page.show_pdf_page(
+            dest_rect,
+            src_doc,
+            src_page_num,
+            clip=src_rect        # crop exactly this region from source page
+        )
+
+        y_cursor += region_height   # advance cursor by exact content height
+
+    src_doc.close()
+
+    # Answer space below the question
+    answer_height = _calculate_answer_space(question["marks"])
+
+    if y_cursor + answer_height > PAGE_H:
+        ws_page = ws_doc.new_page(width=PAGE_W, height=PAGE_H)
+        y_cursor = 0.0
+
+    answer_rect = fitz.Rect(40, y_cursor, PAGE_W - 40, y_cursor + answer_height)
+    ws_page.draw_rect(answer_rect, color=(0.8, 0.8, 0.8), fill=None, width=0.5)
+
+    y_cursor += answer_height + 20
+
+    return ws_page, y_cursor
 
 def _calculate_answer_space(marks: int) -> float:
-    """
-    Determine how much blank space to leave for the answer.
-
-    Rule of thumb: ~30 points per mark, clamped to a min/max range.
-
-    Args:
-        marks: int, the question's mark value.
-
-    Returns:
-        float, height in points for the answer space.
-    """
-    pass
+    """30 points per mark, clamped between 60 and 300."""
+    return max(60.0, min(300.0, marks * 30.0))
