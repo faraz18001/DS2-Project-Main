@@ -4,15 +4,39 @@ worksheet_generator.py — A4 PDF worksheet builder.
 Takes a list of selected question records and compiles them into
 a clean, annotatable A4 PDF using PyMuPDF's vector-preserving
 show_pdf_page() stamping method.
+
+The source Cambridge PDFs have margins with "DO NOT WRITE IN THIS MARGIN"
+text, barcodes, page numbers, footers, etc. We crop all of that away so the
+worksheet only contains clean question content.
 """
 import os
 import fitz
 from typing import Any, Dict, List, Tuple
 
-# A4 dimensions in PDF points (1 point = 1/72 inch)
+# ── A4 dimensions in PDF points (1 point = 1/72 inch) ───────────────
 PAGE_W = 595.0
 PAGE_H = 842.0
-MARGIN = 50.0   # left/right/top/bottom margin on the worksheet
+
+# ── Worksheet margins ────────────────────────────────────────────────
+WS_MARGIN_LEFT   = 45.0
+WS_MARGIN_RIGHT  = 45.0
+WS_MARGIN_TOP    = 45.0
+WS_MARGIN_BOTTOM = 50.0
+
+# ── Source-PDF crop zone ─────────────────────────────────────────────
+# Cambridge past-paper layout has:
+#   - Left margin sidebar ("DO NOT WRITE…")  up to about x=50
+#   - Right margin sidebar ("DO NOT WRITE…") from about x=555
+#   - Header zone (barcode, page number)     up to about y=55
+#   - Footer zone (© UCLES, QR code)         from about y=790
+# We crop to the CONTENT rectangle only:
+SRC_CROP_LEFT   = 42.0
+SRC_CROP_RIGHT  = 548.0
+SRC_CROP_TOP    = 55.0
+SRC_CROP_BOTTOM = 785.0
+
+# Usable width on the worksheet page
+USABLE_W = PAGE_W - WS_MARGIN_LEFT - WS_MARGIN_RIGHT
 
 
 def generate_worksheet(
@@ -20,52 +44,67 @@ def generate_worksheet(
     output_path: str,
     title: str = "Worksheet"
 ) -> str:
+    """
+    Build an A4 PDF worksheet from a list of question records.
 
-    # ── 1. Create blank A4 worksheet ──────────────────────────────
-    ws_doc = fitz.open()   # new empty document
+    Each question dict must have at least:
+        pdf      — path to the source PDF
+        marks    — total marks for this question
+        regions  — list of {page: int, rect: [x0, y0, x1, y1]}
+    """
 
+    ws_doc = fitz.open()  # new empty document
     ws_page = ws_doc.new_page(width=PAGE_W, height=PAGE_H)
-    y_cursor = _stamp_header(ws_page, title, sum(q["marks"] for q in selected_questions))
 
-    # ── 2. Stamp each question ────────────────────────────────────
+    total_marks = sum(q.get("marks", 0) for q in selected_questions)
+    y_cursor = _stamp_header(ws_page, title, total_marks)
+
     for q_num, question in enumerate(selected_questions, start=1):
         ws_page, y_cursor = _stamp_question(
             ws_doc, ws_page, y_cursor, question, q_num
         )
 
-    # ── 3. Save ───────────────────────────────────────────────────
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    ws_doc.save(output_path)
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    ws_doc.save(output_path, garbage=3, deflate=True)
     ws_doc.close()
     return output_path
 
 
+# ── Header ───────────────────────────────────────────────────────────
+
 def _stamp_header(page: fitz.Page, title: str, total_marks: int) -> float:
-    """Draw the worksheet title and return the y position just below it."""
-    
-    # fitz.Page.insert_text(point, text, fontsize, color)
-    # point = (x, y) where y is the BASELINE of the text
+    """Draw a clean header and return the y position below it."""
+
+    y = WS_MARGIN_TOP + 18
     page.insert_text(
-        (MARGIN, MARGIN + 20),
+        (WS_MARGIN_LEFT, y),
         title,
-        fontsize=16,
-        color=(0, 0, 0)   # RGB 0-1 float, not 0-255
+        fontsize=15,
+        fontname="helv",
+        color=(0, 0, 0),
     )
+
+    y += 16
     page.insert_text(
-        (MARGIN, MARGIN + 38),
+        (WS_MARGIN_LEFT, y),
         f"Total Marks: {total_marks}",
-        fontsize=10,
-        color=(0.3, 0.3, 0.3)
+        fontsize=9,
+        fontname="helv",
+        color=(0.35, 0.35, 0.35),
     )
 
-    # Draw a horizontal line using draw_line(p1, p2) then finish_shape()
+    y += 10
     page.draw_line(
-        fitz.Point(MARGIN, MARGIN + 48),
-        fitz.Point(PAGE_W - MARGIN, MARGIN + 48)
+        fitz.Point(WS_MARGIN_LEFT, y),
+        fitz.Point(PAGE_W - WS_MARGIN_RIGHT, y),
+        color=(0, 0, 0),
+        width=0.8,
     )
 
-    return MARGIN + 65.0   # return y cursor just below the header
+    return y + 15  # a little breathing room below the line
 
+
+# ── Per-question stamping ────────────────────────────────────────────
 
 def _stamp_question(
     ws_doc: fitz.Document,
@@ -74,53 +113,96 @@ def _stamp_question(
     question: Dict[str, Any],
     q_number: int,
 ) -> Tuple[fitz.Page, float]:
+    """
+    Stamp one question's regions onto the worksheet, cropping away
+    the Cambridge sidebar and header/footer chrome.
+    """
 
     src_doc = fitz.open(question["pdf"])
 
     for region in question["regions"]:
         src_page_num = region["page"]
-        src_rect = fitz.Rect(region["rect"])  # e.g. [0, 53.8, 595.2, 717.6]
+        raw_rect = fitz.Rect(region["rect"])  # full-width rect from parser
 
-        # Height of this region in the source — used as-is, no scaling
-        region_height = src_rect.height       # e.g. 717.6 - 53.8 = 663.8
+        # ── Intersect with the clean content zone ────────────────────
+        # The parser gives us the vertical extent of the question.
+        # We tighten the horizontal and vertical bounds to exclude the
+        # margin sidebars, header barcodes, and footer lines.
+        clip = fitz.Rect(
+            max(raw_rect.x0, SRC_CROP_LEFT),
+            max(raw_rect.y0, SRC_CROP_TOP),
+            min(raw_rect.x1, SRC_CROP_RIGHT),
+            min(raw_rect.y1, SRC_CROP_BOTTOM),
+        )
 
-        # Does this region fit on the current page?
-        if y_cursor + region_height > PAGE_H:
+        if clip.is_empty or clip.width < 10 or clip.height < 10:
+            continue  # degenerate region — skip
+
+        # ── Scale to fit the usable width ────────────────────────────
+        src_content_w = clip.width        # e.g. 548 - 42 = 506
+        scale = USABLE_W / src_content_w  # e.g. 505 / 506 ≈ 1.0
+        dest_h = clip.height * scale
+
+        # ── Fit check ────────────────────────────────────────────────
+        space_left = PAGE_H - WS_MARGIN_BOTTOM - y_cursor
+
+        if dest_h <= space_left:
+            # Fits as-is — no action needed
+            pass
+        elif dest_h <= space_left * 1.15:
+            # Region is only slightly too tall (within 15%).
+            # Shrink it to fit rather than wasting the rest of the page.
+            # This avoids the "empty first page" problem when a near-
+            # full-page region follows the header.
+            shrink = space_left / dest_h
+            scale *= shrink
+            dest_h = space_left
+        else:
+            # Too tall to shrink gracefully — start a fresh page.
             ws_page = ws_doc.new_page(width=PAGE_W, height=PAGE_H)
-            y_cursor = 0.0
+            y_cursor = WS_MARGIN_TOP
+            space_left = PAGE_H - WS_MARGIN_BOTTOM - y_cursor
+            # If it still doesn't fit a blank page, shrink to page
+            if dest_h > space_left:
+                shrink = space_left / dest_h
+                scale *= shrink
+                dest_h = space_left
 
-        # dest_rect is the SAME SIZE as src_rect → scale = 1.0
+        dest_w = clip.width * scale
         dest_rect = fitz.Rect(
-            0,                          # align to left edge of worksheet
+            WS_MARGIN_LEFT,
             y_cursor,
-            src_rect.width,             # same width as source (≈595)
-            y_cursor + region_height    # same height as source
+            WS_MARGIN_LEFT + dest_w,
+            y_cursor + dest_h,
         )
 
         ws_page.show_pdf_page(
             dest_rect,
             src_doc,
             src_page_num,
-            clip=src_rect        # crop exactly this region from source page
+            clip=clip,
         )
 
-        y_cursor += region_height   # advance cursor by exact content height
+        y_cursor += dest_h
 
     src_doc.close()
 
-    # Answer space below the question
-    answer_height = _calculate_answer_space(question["marks"])
-
-    if y_cursor + answer_height > PAGE_H:
-        ws_page = ws_doc.new_page(width=PAGE_W, height=PAGE_H)
-        y_cursor = 0.0
-
-    answer_rect = fitz.Rect(40, y_cursor, PAGE_W - 40, y_cursor + answer_height)
-    ws_page.draw_rect(answer_rect, color=(0.8, 0.8, 0.8), fill=None, width=0.5)
-
-    y_cursor += answer_height + 20
+    # ── Thin separator line after each question ──────────────────────
+    y_cursor += 6
+    if y_cursor < PAGE_H - WS_MARGIN_BOTTOM:
+        ws_page.draw_line(
+            fitz.Point(WS_MARGIN_LEFT, y_cursor),
+            fitz.Point(PAGE_W - WS_MARGIN_RIGHT, y_cursor),
+            color=(0.75, 0.75, 0.75),
+            width=0.4,
+            dashes="[3 3]",
+        )
+    y_cursor += 12
 
     return ws_page, y_cursor
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
 
 def _calculate_answer_space(marks: int) -> float:
     """30 points per mark, clamped between 60 and 300."""

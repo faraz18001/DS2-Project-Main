@@ -1,4 +1,4 @@
-"""
+r"""
 pdf_parser.py — Bounding Box (BBox) PDF ingestion and question extraction.
 
 FIX (v2): Switched from block-level to LINE-level parsing.
@@ -83,10 +83,6 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
     for page_num in range(len(doc)):
         page = doc[page_num]
         page_dict = page.get_text("dict")
-        
-        ###################################################
-        print("i am here in parse_paper, page_dict", page_dict)
-        break
         page_width = page.rect.width
 
         # Collect all text lines from all blocks on this page

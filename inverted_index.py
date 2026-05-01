@@ -119,12 +119,15 @@ class InvertedIndex:
 
     # ── Persistence ──────────────────────────────────────────────
 
-    def remove_question(self, question_id: str) -> None:
+    def remove_question(self, question_id):
         if question_id in self.question_store:
             del self.question_store[question_id]
 
         for key in self.main_index:
-            cleaned_list = [qid for qid in self.main_index[key] if qid != question_id]
+            cleaned_list = []
+            for qid in self.main_index[key]:
+                if qid != question_id:
+                    cleaned_list.append(qid)
             self.main_index[key] = cleaned_list
 
     def save(self, path: str) -> None:

@@ -10,7 +10,7 @@ from worksheet_generator import generate_worksheet
 # Copy the pdf path to match where YOUR pdfs actually are on disk.
 # Use raw strings (r"...") on Windows to avoid backslash issues.
 
-BASE_PDF = r"data\papers\qp\9702_w25_qp_21.pdf"
+BASE_PDF = "data/papers/qp/9702_w25_qp_21.pdf"
 
 sample_questions = [
     {
