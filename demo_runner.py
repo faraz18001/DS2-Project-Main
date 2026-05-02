@@ -5,7 +5,9 @@ demo_runner.py — Terminal app to manage the question bank.
 import os
 import time
 from typing import Any, Dict, List
+import json
 
+from pprint import pprint
 from build_index import build_master_index
 from inverted_index import InvertedIndex
 from pdf_parser import parse_paper
@@ -21,6 +23,7 @@ def show_menu() -> None:
     print("[3] Add a New Paper (PDF)")
     print("[4] Delete a Question")
     print("[5] Performance Benchmark")
+    print("[6] Generate Worksheet")
     print("[0] Exit and Save")
     print("=" * 40)
 
@@ -33,7 +36,7 @@ def view_tree(index: InvertedIndex) -> None:
 
     # Sort keys so it looks organized
     all_keys: List[str] = sorted(list(index.main_index.keys()))
-
+    
     for key in all_keys:
         print("\n" + key)
         question_ids: List[str] = index.main_index[key]
@@ -45,7 +48,18 @@ def view_tree(index: InvertedIndex) -> None:
                 connector = "└── "
             print(connector + qid)
 
-
+def gen_worksheet(index: InvertedIndex) -> None:
+    # with open("data/keywords/keyword_map.json") as file:
+    #     data = json.load(file)
+    
+    # pprint(data.keys())
+    print("Select Course: ")
+    index.print_courses()
+    course_code = input("Input Code: ")
+    index.print_session(course_code)
+    
+    
+    
 def search_topic(index: InvertedIndex) -> None:
     # Updated to show the new key format
     print("\nEnter topic/key to search (e.g., 9702_Kinematics_p13):")
@@ -193,6 +207,8 @@ def main() -> None:
             delete_question(bank_index)
         elif choice == "5":
             run_benchmark(bank_index)
+        elif choice == "6":
+            gen_worksheet(bank_index)
         elif choice == "0":
             print("Saving changes to " + index_file_path + "...")
             bank_index.save(index_file_path)

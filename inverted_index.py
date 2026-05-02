@@ -23,6 +23,8 @@ class InvertedIndex:
     def __init__(self) -> None:
         self.main_index: Dict[str, List[str]] = {}
         self.question_store: Dict[str, Dict[str, Any]] = {}
+        with open("data/keywords/keyword_map.json") as file:
+            self.keyword_map: Dict[str, Dict[str, Any]] = json.load(file)
 
     # ── Core Operations ──────────────────────────────────────────
 
@@ -146,3 +148,17 @@ class InvertedIndex:
 
         self.main_index = data["main_index"]
         self.question_store = data["question_store"]
+
+    #── Printing ──────────────────────────────────────────────
+    def print_courses(self) -> list:
+        for i, item in enumerate(self.keyword_map.keys()):
+            print(i+1, "- ",item)
+        
+    def print_session(self, course_code: str) -> list:
+        if(self.keyword_map[course_code].keys()) == ["ALL"]: 
+            return "O3"
+        else:
+            for item in self.keyword_map[course_code].keys():
+                print(item, " ")
+                
+    
