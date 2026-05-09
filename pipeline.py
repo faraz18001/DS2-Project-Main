@@ -1,136 +1,215 @@
 """
 pipeline.py — End-to-end orchestration of the four-stage system.
 
-Stage 1: PDF Ingestion    → parse PDFs, extract questions + images + marks
-Stage 2: Index Build      → tag topics, insert records into inverted index
-Stage 3: Query & Select   → filter by topic/year, run knapsack for target marks
-Stage 4: Worksheet Output → stamp selected questions onto an A4 PDF
+Stage 1: PDF Ingestion    → parse PDFs into question records
+Stage 2: Index Build      → tag topics, insert into inverted index
+Stage 3: Query & Select   → filter by topic/paper/year, run knapsack
+Stage 4: Worksheet Output → vector-stamp selected questions onto an A4 PDF
+
+The parser uses the PapaCambridge naming convention:
+    {subject}_{session}_qp_{paper_code}.pdf
+    e.g. 9702_w25_qp_13.pdf  →  paper_type "p13"
 """
 
 import json
 import os
+from typing import Any, Dict, List, Optional, Tuple
 
 from config import (
     PAPERS_DIR, KEYWORD_MAP_PATH, INDEX_PATH, QUESTION_DB_PATH, OUTPUT_DIR,
 )
 from inverted_index import InvertedIndex
-from pdf_parser import parse_all_papers
-from topic_mapper import load_keyword_map, tag_question, build_composite_keys
 from knapsack import select_questions
+from pdf_parser import parse_paper
+from topic_mapper import build_composite_keys, load_keyword_map, tag_question
 from worksheet_generator import generate_worksheet
 
 
-# ── Stage 1: Ingestion ────────────────────────────────────────────────────
-def run_ingestion(subject_code):
+# ── Stage 1: ingestion ───────────────────────────────────────────────
+def run_ingestion(subject_code: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Parse every PDF under data/papers/<subject_code>/, tag topics from the
-    keyword map, and persist the full tagged question bank to question_db.json.
+    Walk PAPERS_DIR, parse every Cambridge-named PDF, and tag topics
+    on every question. Records the result to question_db.json.
+
+    `subject_code=None` ingests every subject found in the papers folder.
+    Pass a code (e.g. "9702") to restrict to one subject.
 
     Returns the list of tagged question record dicts.
     """
-    subject_papers_dir = os.path.join(PAPERS_DIR, subject_code)
-    if not os.path.isdir(subject_papers_dir):
+    if not os.path.isdir(PAPERS_DIR):
         raise FileNotFoundError(
-            f"No papers directory found at {subject_papers_dir}. "
-            f"Put your PDFs there before running ingestion."
+            f"Papers directory not found: {PAPERS_DIR}\n"
+            f"Place your PDFs under data/papers/ — Cambridge-style filenames "
+            f"like 9702_w25_qp_13.pdf are required."
         )
 
-    questions = parse_all_papers(subject_papers_dir, subject_code)
-    print(f"[ingestion] extracted {len(questions)} questions from PDFs")
-
     keyword_map = load_keyword_map(KEYWORD_MAP_PATH)
+    all_questions: List[Dict[str, Any]] = []
 
-    for q in questions:
-        q["topics"] = tag_question(q.get("text", ""), subject_code, keyword_map)
+    pdf_count = 0
+    for root, _dirs, files in os.walk(PAPERS_DIR):
+        for fname in files:
+            if not fname.lower().endswith(".pdf"):
+                continue
+            if "_qp_" not in fname:
+                # Cambridge marking schemes are "_ms_"; we only want question papers.
+                continue
 
+            pdf_path = os.path.join(root, fname)
+            questions = parse_paper(pdf_path)
+            if not questions:
+                print(f"[ingestion] no questions extracted from {fname}")
+                continue
+
+            # Optional subject filter
+            if subject_code and questions[0].get("subject") != subject_code:
+                continue
+
+            print(f"[ingestion] {fname}: {len(questions)} questions extracted")
+
+            # Tag every question (topic_mapper is tier-aware)
+            for q in questions:
+                topics = tag_question(
+                    q.get("text", ""),
+                    q["subject"],
+                    keyword_map,
+                    q.get("paper_type", ""),
+                )
+                q["topic"] = topics
+
+            all_questions.extend(questions)
+            pdf_count += 1
+
+    print(f"[ingestion] {pdf_count} PDFs parsed, "
+          f"{len(all_questions)} questions total")
+
+    # Persist the tagged question bank for inspection / debugging
     os.makedirs(os.path.dirname(QUESTION_DB_PATH), exist_ok=True)
     with open(QUESTION_DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(questions, f, indent=2, ensure_ascii=False)
+        json.dump(all_questions, f, indent=2, ensure_ascii=False)
 
-    # Diagnostic: topic distribution
-    topic_counts = {}
-    for q in questions:
-        for t in q["topics"]:
-            topic_counts[t] = topic_counts.get(t, 0) + 1
-    print(f"[ingestion] topic distribution: {topic_counts}")
-    print(f"[ingestion] wrote {QUESTION_DB_PATH}")
-
-    return questions
+    return all_questions
 
 
-# ── Stage 2: Index build ──────────────────────────────────────────────────
-def run_index_build(questions):
+# ── Stage 2: index build ─────────────────────────────────────────────
+def run_index_build(questions: List[Dict[str, Any]]) -> InvertedIndex:
     """
-    Insert each tagged question into the inverted index under every
-    composite key (subject, topic, paper_type) it qualifies for.
-    Persist to index.json.
+    Insert every tagged question into the inverted index under each
+    composite key (subject_topic_paperType) it qualifies for, then save.
     """
-    index = InvertedIndex()
+    index = InvertedIndex(keyword_map_path=KEYWORD_MAP_PATH)
+
     for q in questions:
-        topics = q.get("topics") or ["Uncategorized"]
-        for topic in topics:
-            key = f"{q['subject']}_{topic}_{q['paper_type']}"
+        topics = q.get("topic") or ["Uncategorized"]
+        if isinstance(topics, str):
+            topics = [topics]
+        keys = build_composite_keys(q["subject"], topics, q["paper_type"])
+        for key in keys:
             index.insert(key, q)
 
-    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
     index.save(INDEX_PATH)
-    print(f"[index] {index.key_count()} keys, {len(index)} unique questions")
+    s = index.stats()
+    print(f"[index] {s['n_keys']} keys, {s['n_questions']} questions, "
+          f"{s['n_subjects']} subjects, "
+          f"avg postings/key = {s['avg_postings']}")
     return index
 
 
-# ── Stage 3: Query, filter, select ────────────────────────────────────────
-def run_query(index, subject_code, topics, paper_type, year_from, year_to, target_marks):
+# ── Stage 3: query, filter, knapsack ─────────────────────────────────
+def run_query(
+    index: InvertedIndex,
+    subject_code: str,
+    topics: List[str],
+    paper_type: str,
+    year_from: int,
+    year_to: int,
+    target_marks: int,
+) -> Tuple[List[Dict[str, Any]], int]:
     """
-    Compose keys from user selections, union postings lists, apply year
-    filter, pass candidates to knapsack.
+    1. Build composite keys for every (topic × {paper_type}) combination.
+    2. Union the postings lists.
+    3. Hydrate ids → records, applying year filter.
+    4. Run knapsack to hit the target marks.
 
-    Returns (selected_questions, actual_total_marks).
+    `paper_type` may be a single variant (e.g. "p21") or a tier code
+    ("AS"/"A2"/"ALL") — for tier codes we match every variant whose
+    first digit puts it in that tier.
     """
-    keys = build_composite_keys(subject_code, topics, paper_type)
-    print(f"[query] searching keys: {keys}")
+    paper_variants = _expand_paper_types(index, subject_code, paper_type)
+    keys = index.keys_for(subject_code, topics, paper_variants)
+    print(f"[query] composite keys to fetch ({len(keys)}):")
+    for k in keys[:8]:
+        n = len(index.query(k))
+        print(f"          {k}  ({n} postings)")
+    if len(keys) > 8:
+        print(f"          ... and {len(keys) - 8} more")
 
-    candidates = index.union(keys)
-    print(f"[query] {len(candidates)} candidates before year filter")
+    candidate_ids = index.union(keys)
+    candidates = index.fetch_documents(candidate_ids, year_from, year_to)
+    print(f"[query] {len(candidate_ids)} ids before year filter, "
+          f"{len(candidates)} survive [{year_from}, {year_to}]")
 
-    filtered = index.filter_by_year(candidates, year_from, year_to)
-    print(f"[query] {len(filtered)} candidates after year filter "
-          f"[{year_from}, {year_to}]")
-
-    if not filtered:
-        print("[query] no candidates matched — returning empty selection")
+    if not candidates:
         return [], 0
 
-    selected, actual = select_questions(filtered, target_marks)
-    print(f"[query] knapsack selected {len(selected)} questions "
-          f"totalling {actual}/{target_marks} marks")
+    selected, actual = select_questions(candidates, target_marks)
+    print(f"[query] knapsack: selected {len(selected)} questions "
+          f"summing to {actual}/{target_marks} marks")
     return selected, actual
 
 
-# ── Stage 4: Worksheet generation ─────────────────────────────────────────
-def run_generate(selected_questions, title):
-    """Write the worksheet PDF. Returns the output file path."""
+def _expand_paper_types(
+    index: InvertedIndex,
+    subject: str,
+    requested: str,
+) -> List[str]:
+    """Resolve "AS"/"A2"/"ALL" or a single variant code to a list of
+    actual paper variants present in the index."""
+    available = index.list_paper_types(subject)
+    if not available:
+        return [requested]
+
+    if requested == "ALL":
+        return available
+    if requested == "AS":
+        return [p for p in available if p[1:2] in {"1", "2", "3"}]
+    if requested == "A2":
+        return [p for p in available if p[1:2] in {"4", "5"}]
+    return [requested]
+
+
+# ── Stage 4: worksheet generation ────────────────────────────────────
+def run_generate(selected_questions: List[Dict[str, Any]], title: str) -> str:
+    """Stamp the selection onto an A4 PDF. Returns the output path."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)[:80]
     output_path = os.path.join(OUTPUT_DIR, f"{safe}.pdf")
     generate_worksheet(selected_questions, output_path, title)
     print(f"[generate] worksheet written to {output_path}")
     return output_path
 
 
-# ── End-to-end orchestration ──────────────────────────────────────────────
-def run_full_pipeline(subject_code, topics, paper_type, year_from, year_to, target_marks):
+# ── End-to-end ───────────────────────────────────────────────────────
+def run_full_pipeline(
+    subject_code: str,
+    topics: List[str],
+    paper_type: str,
+    year_from: int,
+    year_to: int,
+    target_marks: int,
+) -> str:
     """
-    Full pipeline. Reuses a cached index if one exists on disk, otherwise
-    runs ingestion + index build first.
+    Run all four stages. Loads a cached index from INDEX_PATH if present;
+    otherwise re-ingests + rebuilds first.
     """
-    index = InvertedIndex()
+    index = InvertedIndex(keyword_map_path=KEYWORD_MAP_PATH)
 
     if os.path.exists(INDEX_PATH):
         index.load(INDEX_PATH)
-        print(f"[pipeline] loaded cached index from {INDEX_PATH}")
+        print(f"[pipeline] loaded cached index ({index.stats()})")
     else:
-        print("[pipeline] no cached index — running ingestion")
-        questions = run_ingestion(subject_code)
+        print("[pipeline] no cached index — running ingestion + build")
+        questions = run_ingestion()
         index = run_index_build(questions)
 
     selected, actual = run_query(
@@ -139,10 +218,9 @@ def run_full_pipeline(subject_code, topics, paper_type, year_from, year_to, targ
     )
 
     if not selected:
-        # Still produce an (empty) PDF so the Flask route has something to send.
-        title = f"empty_worksheet_{subject_code}_{paper_type}"
+        title = f"empty_{subject_code}_{paper_type}"
         return run_generate([], title)
 
-    topics_slug = '-'.join(topics) if topics else 'all'
+    topics_slug = "-".join(topics)[:40] if topics else "all"
     title = f"{subject_code}_{paper_type}_{topics_slug}_{actual}marks"
     return run_generate(selected, title)

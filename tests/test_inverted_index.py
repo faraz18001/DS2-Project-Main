@@ -9,8 +9,7 @@ from inverted_index import InvertedIndex
 
 
 def _q(qid, subject="5054", topic="Kinematics",
-       paper_type="P1", year=2020, marks=5):
-    """Build a minimal question record dict for test fixtures."""
+       paper_type="p11", year=2024, marks=5):
     return {
         "id": qid, "subject": subject, "topic": topic,
         "paper_type": paper_type, "year": year, "marks": marks,
@@ -22,87 +21,119 @@ class TestInvertedIndex(unittest.TestCase):
     def setUp(self):
         self.index = InvertedIndex()
 
+    # ── core ────────────────────────────────────────────────────────
     def test_insert_and_query(self):
-        """A single insert is retrievable by the same key."""
-        self.index.insert("5054_Kinematics_P1", _q("q1"))
-        result = self.index.query("5054_Kinematics_P1")
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["id"], "q1")
-
-    def test_query_missing_key_returns_empty(self):
-        """Querying an unknown key returns [] (not None, not error)."""
-        self.assertEqual(self.index.query("not_a_real_key"), [])
-
-    def test_union_deduplicates(self):
-        """Union of two keys that share a question must not duplicate it."""
-        q1 = _q("q1")
-        q2 = _q("q2")
-        q3 = _q("q3", topic="Forces")
-        self.index.insert("5054_Kinematics_P1", q1)
-        self.index.insert("5054_Kinematics_P1", q2)
-        self.index.insert("5054_Forces_P1", q3)
-        self.index.insert("5054_Forces_P1", q1)  # q1 indexed under both keys
-
-        merged = self.index.union(["5054_Kinematics_P1", "5054_Forces_P1"])
-        ids = sorted(q["id"] for q in merged)
-        self.assertEqual(ids, ["q1", "q2", "q3"])
-
-    def test_intersect_returns_common(self):
-        """Intersect returns only the ids in all listed keys."""
-        q1 = _q("q1")
-        q3 = _q("q3", topic="Forces")
-        self.index.insert("5054_Kinematics_P1", q1)
-        self.index.insert("5054_Forces_P1", q1)
-        self.index.insert("5054_Forces_P1", q3)
-
-        common = self.index.intersect(["5054_Kinematics_P1", "5054_Forces_P1"])
-        ids = [q["id"] for q in common]
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        ids = self.index.query("5054_Kinematics_p11")
         self.assertEqual(ids, ["q1"])
 
-    def test_intersect_missing_key_returns_empty(self):
-        """If any key is missing, intersect returns []."""
-        self.index.insert("5054_Kinematics_P1", _q("q1"))
+    def test_insert_dedup_within_key(self):
+        """Inserting the same record twice under one key is a no-op."""
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.assertEqual(self.index.query("5054_Kinematics_p11"), ["q1"])
+
+    def test_query_missing_key(self):
+        self.assertEqual(self.index.query("nope"), [])
+
+    # ── set ops ─────────────────────────────────────────────────────
+    def test_union_dedup_across_keys(self):
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Kinematics_p11", _q("q2"))
+        self.index.insert("5054_Forces_p11",     _q("q3", topic="Forces"))
+        self.index.insert("5054_Forces_p11",     _q("q1"))   # cross-tagged
+        u = sorted(self.index.union(["5054_Kinematics_p11", "5054_Forces_p11"]))
+        self.assertEqual(u, ["q1", "q2", "q3"])
+
+    def test_intersect_returns_common(self):
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Forces_p11",     _q("q1"))
+        self.index.insert("5054_Forces_p11",     _q("q3", topic="Forces"))
         self.assertEqual(
-            self.index.intersect(["5054_Kinematics_P1", "nope"]),
+            self.index.intersect(["5054_Kinematics_p11", "5054_Forces_p11"]),
+            ["q1"],
+        )
+
+    def test_intersect_with_unknown_key(self):
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.assertEqual(
+            self.index.intersect(["5054_Kinematics_p11", "ghost"]),
             [],
         )
 
-    def test_filter_by_year(self):
-        """Year filter subsets to [from, to] inclusive."""
-        recs = [_q("q1", year=2019), _q("q2", year=2021),
-                _q("q3", year=2023), _q("q4", year=2025)]
-        filtered = self.index.filter_by_year(recs, 2020, 2023)
-        ids = sorted(q["id"] for q in filtered)
-        self.assertEqual(ids, ["q2", "q3"])
-
+    # ── delete / hydration / year ───────────────────────────────────
     def test_delete_whole_key(self):
-        """Delete without a question_id removes the whole postings list."""
-        self.index.insert("5054_Kinematics_P1", _q("q1"))
-        self.index.insert("5054_Kinematics_P1", _q("q2"))
-        self.index.delete("5054_Kinematics_P1")
-        self.assertEqual(self.index.query("5054_Kinematics_P1"), [])
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Kinematics_p11", _q("q2"))
+        self.index.delete("5054_Kinematics_p11")
+        self.assertEqual(self.index.query("5054_Kinematics_p11"), [])
 
     def test_delete_single_id(self):
-        """Delete with a question_id removes just that id from the list."""
-        self.index.insert("5054_Kinematics_P1", _q("q1"))
-        self.index.insert("5054_Kinematics_P1", _q("q2"))
-        self.index.delete("5054_Kinematics_P1", "q1")
-        remaining = self.index.query("5054_Kinematics_P1")
-        self.assertEqual([q["id"] for q in remaining], ["q2"])
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Kinematics_p11", _q("q2"))
+        self.index.delete("5054_Kinematics_p11", "q1")
+        self.assertEqual(self.index.query("5054_Kinematics_p11"), ["q2"])
 
+    def test_remove_question_purges_everywhere(self):
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Forces_p11",     _q("q1"))
+        self.index.remove_question("q1")
+        self.assertEqual(self.index.query("5054_Kinematics_p11"), [])
+        self.assertEqual(self.index.query("5054_Forces_p11"), [])
+        self.assertNotIn("q1", self.index.question_store)
+
+    def test_fetch_documents_with_year_filter(self):
+        self.index.insert("5054_Kinematics_p11", _q("q1", year=2019))
+        self.index.insert("5054_Kinematics_p11", _q("q2", year=2024))
+        ids = self.index.query("5054_Kinematics_p11")
+        full = self.index.fetch_documents(ids, 2020, 2025)
+        self.assertEqual([r["id"] for r in full], ["q2"])
+
+    # ── demo introspection ─────────────────────────────────────────
+    def test_list_subjects_topics_paper_types_years(self):
+        self.index.insert("5054_Kinematics_p11", _q("q1", year=2023))
+        self.index.insert("5054_Forces_p21",     _q("q2", topic="Forces",
+                                                   paper_type="p21", year=2024))
+        self.index.insert("9702_Dynamics_p41",   _q("q3", subject="9702",
+                                                   topic="Dynamics",
+                                                   paper_type="p41", year=2025))
+        self.assertEqual(self.index.list_subjects(), ["5054", "9702"])
+        self.assertEqual(self.index.list_topics("5054"), ["Forces", "Kinematics"])
+        self.assertEqual(self.index.list_paper_types("5054"), ["p11", "p21"])
+        self.assertEqual(self.index.list_years("5054"), [2023, 2024])
+        self.assertEqual(self.index.list_years(), [2023, 2024, 2025])
+
+    def test_keys_for_cross_product(self):
+        keys = self.index.keys_for("5054", ["Forces", "Energy"], ["p11", "p21"])
+        self.assertEqual(set(keys), {
+            "5054_Forces_p11", "5054_Forces_p21",
+            "5054_Energy_p11", "5054_Energy_p21",
+        })
+
+    def test_stats(self):
+        self.index.insert("5054_Forces_p11", _q("q1"))
+        self.index.insert("5054_Forces_p11", _q("q2"))
+        self.index.insert("9702_Kinematics_p21", _q("q3", subject="9702",
+                                                    paper_type="p21"))
+        s = self.index.stats()
+        self.assertEqual(s["n_keys"], 2)
+        self.assertEqual(s["n_questions"], 3)
+        self.assertEqual(s["n_subjects"], 2)
+
+    # ── persistence ────────────────────────────────────────────────
     def test_save_and_load_round_trip(self):
-        """After save → load, the index returns identical results."""
-        self.index.insert("5054_Kinematics_P1", _q("q1"))
-        self.index.insert("5054_Forces_P1", _q("q3", topic="Forces"))
-
+        self.index.insert("5054_Kinematics_p11", _q("q1"))
+        self.index.insert("5054_Forces_p21", _q("q3", topic="Forces",
+                                                 paper_type="p21"))
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
         tmp.close()
         try:
             self.index.save(tmp.name)
-            restored = InvertedIndex()
-            restored.load(tmp.name)
-            self.assertEqual(restored.query("5054_Kinematics_P1")[0]["id"], "q1")
-            self.assertEqual(restored.query("5054_Forces_P1")[0]["id"], "q3")
+            other = InvertedIndex()
+            other.load(tmp.name)
+            self.assertEqual(other.query("5054_Kinematics_p11"), ["q1"])
+            self.assertEqual(other.query("5054_Forces_p21"),     ["q3"])
+            self.assertEqual(other.list_subjects(), ["5054"])
         finally:
             os.unlink(tmp.name)
 

@@ -7,62 +7,60 @@
 </head>
 <body>
   <main class="container">
+
     <header class="hero">
       <h1>Past Paper Worksheet Generator</h1>
-      <p>Build a custom worksheet from O/A-Level past papers. Filter by topic, year and mark count — download a clean, annotatable PDF.</p>
+      <p>The dropdowns below are populated <em>live</em> from the inverted index —
+        every subject, topic, paper variant and year you can pick is one the
+        data structure has actually indexed.</p>
     </header>
 
-    <form action="{{ url_for('generate') }}" method="POST" class="gen-form">
+    <div class="stats-bar">
+      <span>Index keys: <strong>{{ index_stats.n_keys }}</strong></span>
+      <span>Indexed questions: <strong>{{ index_stats.n_questions }}</strong></span>
+      <span>Subjects: <strong>{{ index_stats.n_subjects }}</strong></span>
+      <span>Avg postings/key: <strong>{{ index_stats.avg_postings }}</strong></span>
+    </div>
+
+    <form action="{{ url_for('generate') }}" method="POST" class="gen-form" id="gen-form">
 
       <div class="field">
         <label for="subject">Subject</label>
         <select name="subject" id="subject" required>
-          {% for code, name in subjects.items() %}
-            <option value="{{ code }}">{{ name }} ({{ code }})</option>
+          {% for s in subjects %}
+            <option value="{{ s.code }}"
+                    data-level="{{ s.level }}"
+                    data-topics='{{ s.topics | tojson }}'
+                    data-papers='{{ s.paper_types | tojson }}'
+                    data-years='{{ s.years | tojson }}'>
+              {{ s.name }} ({{ s.code }}) · {{ s.level }}
+            </option>
           {% endfor %}
         </select>
       </div>
 
       <div class="field">
         <label>Topics <span class="hint">(pick one or more)</span></label>
-        <div class="topics-wrap">
-          {% for subject_code, topics in topic_map.items() %}
-            <div class="topic-group" data-subject="{{ subject_code }}">
-              {% if topics %}
-                {% for topic in topics %}
-                  <label class="chip">
-                    <input type="checkbox" name="topics" value="{{ topic }}">
-                    <span>{{ topic }}</span>
-                  </label>
-                {% endfor %}
-              {% else %}
-                <p class="muted">No topics mapped for this subject yet — add keywords to <code>data/keywords/keyword_map.json</code>.</p>
-              {% endif %}
-            </div>
-          {% endfor %}
-        </div>
+        <div id="topics-wrap" class="topics-wrap"></div>
       </div>
 
       <div class="row">
         <div class="field">
           <label for="paper_type">Paper type</label>
-          <select name="paper_type" id="paper_type">
-            {% for pt in paper_types %}
-              <option value="{{ pt }}">{{ pt }}</option>
-            {% endfor %}
-          </select>
+          <select name="paper_type" id="paper_type"></select>
         </div>
         <div class="field">
           <label for="year_from">Year from</label>
-          <input type="number" name="year_from" id="year_from" value="2023" min="2000" max="2026">
+          <select name="year_from" id="year_from"></select>
         </div>
         <div class="field">
           <label for="year_to">Year to</label>
-          <input type="number" name="year_to" id="year_to" value="2025" min="2000" max="2026">
+          <select name="year_to" id="year_to"></select>
         </div>
         <div class="field">
           <label for="target_marks">Target marks</label>
-          <input type="number" name="target_marks" id="target_marks" value="30" min="5" max="200">
+          <input type="number" name="target_marks" id="target_marks"
+                 value="30" min="5" max="200">
         </div>
       </div>
 
@@ -76,17 +74,70 @@
   </main>
 
   <script>
-    const subjectEl = document.getElementById('subject');
-    const groups = document.querySelectorAll('.topic-group');
-    function update() {
-      const s = subjectEl.value;
-      groups.forEach(g => {
-        const on = g.dataset.subject === s;
-        g.classList.toggle('active', on);
-        if (!on) g.querySelectorAll('input').forEach(i => i.checked = false);
-      });
+    // Repopulate every dependent control whenever the subject changes.
+    // Data comes from data-attributes on each <option>, which were filled
+    // server-side from index.list_topics / list_paper_types / list_years.
+
+    const subjectEl = document.getElementById("subject");
+    const topicsWrap = document.getElementById("topics-wrap");
+    const paperEl = document.getElementById("paper_type");
+    const yFromEl = document.getElementById("year_from");
+    const yToEl   = document.getElementById("year_to");
+
+    function fill(selectEl, items, formatter = (x) => x) {
+      selectEl.innerHTML = "";
+      for (const it of items) {
+        const opt = document.createElement("option");
+        opt.value = it;
+        opt.textContent = formatter(it);
+        selectEl.appendChild(opt);
+      }
     }
-    subjectEl.addEventListener('change', update);
+
+    function update() {
+      const opt = subjectEl.options[subjectEl.selectedIndex];
+      if (!opt) return;
+      const level   = opt.dataset.level;
+      const topics  = JSON.parse(opt.dataset.topics);
+      const papers  = JSON.parse(opt.dataset.papers);
+      const years   = JSON.parse(opt.dataset.years);
+
+      // Topics — checkbox chips
+      topicsWrap.innerHTML = "";
+      if (topics.length === 0) {
+        topicsWrap.innerHTML = "<p class='muted'>No topics indexed for this subject yet.</p>";
+      } else {
+        for (const t of topics) {
+          const lbl = document.createElement("label");
+          lbl.className = "chip";
+          lbl.innerHTML = `<input type="checkbox" name="topics" value="${t}"><span>${t}</span>`;
+          topicsWrap.appendChild(lbl);
+        }
+      }
+
+      // Paper type — A-level gets AS / A2 / ALL plus the actual variants;
+      // O-level just gets ALL plus the variants.
+      let paperOptions = [];
+      if (level === "A-Level") {
+        paperOptions = ["AS", "A2", "ALL", ...papers];
+      } else {
+        paperOptions = ["ALL", ...papers];
+      }
+      fill(paperEl, paperOptions);
+
+      // Year ranges — use the years the index actually has
+      if (years.length > 0) {
+        fill(yFromEl, years);
+        fill(yToEl, years);
+        yFromEl.value = years[0];
+        yToEl.value   = years[years.length - 1];
+      } else {
+        fill(yFromEl, [2024]);
+        fill(yToEl, [2025]);
+      }
+    }
+
+    subjectEl.addEventListener("change", update);
     update();
   </script>
 </body>

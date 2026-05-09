@@ -1,274 +1,198 @@
+r"""
+pdf_parser.py — Bounding Box (BBox) PDF ingestion and question extraction.
+
+FIX (v2): Switched from block-level to LINE-level parsing.
+Root cause of original bug:
+  - Cambridge PDFs merge multiple questions into one block, e.g.:
+      "D  46 ± 4 cm s–2 \n\n\n3  What are the SI base units..."
+    The regex ^(\d+)\s only checked the BLOCK start, so Q3 was never found.
+  - Additionally, formula fractions (e.g. "3" from 3/2) and page number
+    headers (e.g. "3" printed at top of page 3) both triggered false matches.
+
+Fix approach:
+  1. Use get_text("dict") for LINE-level bounding boxes.
+  2. Only detect question numbers on lines in the LEFT MARGIN (x0 < Q_NUM_MAX_X=85).
+     - Real question numbers: x0 ≈ 50 (always left-aligned in Cambridge papers).
+     - Formula fractions: x0 ≥ 95 (centre/right of page).
+     - Page number headers: x0 ≈ 295 (right-aligned or centre).
+  3. Skip the header/footer zones (ly0 < MARGIN_TOP or ly0 > MARGIN_BOTTOM).
 """
-pdf_parser.py — PDF ingestion and question extraction.
 
-Uses pymupdf4llm for robust structure detection and text extraction.
-Images embedded in questions are extracted and filtered to keep only
-question diagrams (graphs, circuits, experiment setups, etc.).
-Tiny decorative images, text-line renders, and MCQ label strips are
-automatically discarded based on pixel dimensions.
-
-Handles Cambridge filename convention:
-    {subject}_{session}{yy}_{paper_code}.pdf
-    e.g. 5054_mj25_11.pdf  →  subject=5054, session=mj, year=2025, code=11
-    e.g. 9702_on24_22.pdf  →  subject=9702, session=on, year=2024, code=22
-
-Paper code first digit is the paper type (11,12,13 → P1; 21,22,23 → P2; etc.)
-"""
-
-import pymupdf4llm
-import re
 import os
-import struct
+import re
+from typing import Any, Dict, List, Optional
+
+import fitz  # PyMuPDF
 
 
-# ---------------------------------------------------------------------------
-# Image-filtering thresholds
-# ---------------------------------------------------------------------------
-MIN_IMG_WIDTH  = 40     # pixels – reject images narrower than this
-MIN_IMG_HEIGHT = 25     # pixels – reject images shorter than this
-MIN_IMG_AREA   = 2500   # sq px  – reject overall tiny images
-MAX_ASPECT     = 12.0   # w/h    – reject extremely thin horizontal strips
+# ── Layout constants (A4 Cambridge past paper geometry) ─────────────
+MARGIN_TOP: float = 55.0      # Skip PDF header region (page numbers, logos)
+MARGIN_BOTTOM: float = 788.0  # Skip PDF footer region (copyright, page refs)
+Q_NUM_MAX_X: float = 85.0     # Question numbers are always in the left margin
 
 
-# ---------------------------------------------------------------------------
-# Filename parsing
-# ---------------------------------------------------------------------------
-def parse_cambridge_filename(filename):
+def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
     """
-    Parse a Cambridge-format PDF filename into metadata.
-    Returns None if the filename doesn't match the pattern.
+    Parse a Cambridge past paper PDF and extract questions as structured records.
 
-    Expected: {subject}_{session}{yy}_{paper_code}.pdf
-    Examples:
-        5054_mj25_11.pdf → subject=5054, year=2025, session=mj, paper_type=P1, code=11
-        9702_on24_22.pdf → subject=9702, year=2024, session=on, paper_type=P2, code=22
+    Each record contains:
+        id, subject, paper_type, session, year, topic, marks, pdf, text, regions
+
+    'regions' is a list of {page, rect} dicts — one per page the question spans —
+    with rect = [x0, y0, x1, y1] in PDF points. Used by the worksheet generator
+    to crop exact question areas from the source PDF without rasterization.
+
+    Expects PapaCambridge naming convention: e.g. 9702_w25_qp_13.pdf
     """
-    base = filename.replace(".pdf", "")
-    parts = base.split("_")
-    if len(parts) < 3:
-        return None
 
-    subject = parts[0]
-    session_year = parts[1]   # "mj25", "on24", "f23"
-    paper_code = parts[2]     # "11", "22", "42"
-
-    # Split session (letters) from year (digits)
-    session = ''.join(c for c in session_year if c.isalpha())
-    year_str = ''.join(c for c in session_year if c.isdigit())
-
-    if not year_str:
-        return None
-
-    # 2-digit year -> 20xx
-    if len(year_str) == 2:
-        year = 2000 + int(year_str)
+    # ── 1. Extract metadata from filename ─────────────────────────────
+    file_name = os.path.basename(pdf_path)
+    name_no_ext = os.path.splitext(file_name)[0]
+    parts = name_no_ext.split("_")
+    
+    if len(parts) >= 4:
+        subject_code = parts[0]          # e.g. "9702"
+        session_year = parts[1]          # e.g. "w25"
+        variant = parts[3]               # e.g. "13"
+        paper_type = f"p{variant}"       # e.g. "p13"
+        try:
+            actual_year = 2000 + int(session_year[1:])
+        except ValueError:
+            actual_year = 2025
     else:
-        year = int(year_str)
+        print(f"Warning: Filename '{file_name}' does not match PapaCambridge standard.")
+        return []
 
-    # First digit of paper_code is paper number
-    if paper_code and paper_code[0].isdigit():
-        paper_type = f"P{paper_code[0]}"
-    else:
-        paper_type = "P1"
+    # ── 2. Regex: match a question number at the START of a line ──────
+    # Accepts:
+    #   "3"           → number only (question number on its own line)
+    #   "3 What are…" → number followed by space and content
+    # Does NOT accept:
+    #   "3/2"         → filtered by x0 check (appears in centre of page)
+    #   "30 Green…"   → correctly matches Q30
+    q_num_pattern = re.compile(r"^(\d{1,2})(?:\s+\S|\s*$)")
 
-    return {
-        "subject":    subject,
-        "year":       year,
-        "session":    session or "x",
-        "paper_type": paper_type,
-        "paper_code": paper_code,
-    }
+    # ── 3. Parse PDF line-by-line ──────────────────────────────────────
+    doc = fitz.open(pdf_path)
+    
+    
+    questions: List[Dict[str, Any]] = []
+    current_q: Optional[Dict[str, Any]] = None
+    expected_q: int = 1
 
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        page_dict = page.get_text("dict")
+        page_width = page.rect.width
 
-# ---------------------------------------------------------------------------
-# Main parser
-# ---------------------------------------------------------------------------
-def parse_paper(pdf_path, subject_code, paper_type, year, paper_code=None, session=None):
-    """
-    Parse a single past paper PDF and extract all questions.
+        # Collect all text lines from all blocks on this page
+        all_lines: List[tuple] = []
+        for block in page_dict["blocks"]:
+            if block.get("type") != 0:          # skip image blocks
+                continue
+            for line in block["lines"]:
+                lx0, ly0, lx1, ly1 = line["bbox"]
+                # Join spans into a single string for this line
+                line_text = " ".join(
+                    span["text"] for span in line["spans"]
+                ).strip()
+                if line_text:
+                    all_lines.append((lx0, ly0, lx1, ly1, line_text))
 
-    Each question record includes:
-      - id, subject, topic, paper_type, year, marks, pdf, page, bbox
-      - text:       extracted markdown text (with inline image references stripped later)
-      - images:     list of absolute paths to diagram images
-      - has_images: True if any images were found
-      - paper_code, session: original Cambridge metadata (for the source footer)
-    """
-    pdf_dir = os.path.dirname(os.path.abspath(pdf_path))
-    pdf_stem = os.path.splitext(os.path.basename(pdf_path))[0]
-    image_output_dir = os.path.join(pdf_dir, "images", pdf_stem)
-    os.makedirs(image_output_dir, exist_ok=True)
+        # Sort lines by visual row first, then left-to-right within that row.
+        # Cambridge PDFs render question numbers and their text on the SAME
+        # visual line but as separate elements with y0 differing by ~1-2 px
+        # (e.g. number "3" at y0=520.8, question text at y0=519.7).
+        # Grouping into 5-pt buckets ensures the left-most element (question
+        # number, x0≈50) is processed before the question text (x0≈71), so
+        # the question boundary is detected before the text is accumulated.
+        all_lines.sort(key=lambda l: (round(l[1] / 5) * 5, l[0]))
 
-    md = pymupdf4llm.to_markdown(
-        pdf_path,
-        write_images=True,
-        image_path=image_output_dir,
-    )
+        for lx0, ly0, lx1, ly1, line_text in all_lines:
 
-    # Split markdown at every question-start marker.
-    # Matches: "\n1 Text", "\n- 1 Text", with 1-2 digit question numbers
-    # and a capital-letter lookahead to avoid false splits inside "Fig. 2.1".
-    raw_questions = re.split(r'\n(?:- )?(\d{1,2}) (?=[A-Z])', md)
-
-    results = []
-    if len(raw_questions) < 3:
-        return results
-
-    i = 1
-    while i < len(raw_questions):
-        if i + 1 >= len(raw_questions):
-            break
-        q_num = raw_questions[i]
-        q_text = raw_questions[i + 1]
-
-        marks = extract_marks(q_text)
-        images = extract_image_paths(q_text, image_output_dir)
-
-        q_id = f"{subject_code}_{year}_{paper_type}_{paper_code or 'x'}_q{q_num}"
-
-        record = {
-            "id": q_id,
-            "subject": subject_code,
-            "topic": "Unknown",
-            "paper_type": paper_type,
-            "paper_code": paper_code or paper_type,
-            "session": session or "x",
-            "year": year,
-            "marks": marks,
-            "pdf": pdf_path,
-            "page": 0,
-            "bbox": [],
-            "text": q_text,
-            "images": images,
-            "has_images": len(images) > 0,
-        }
-        results.append(record)
-        i += 2
-
-    return results
-
-
-# ---------------------------------------------------------------------------
-# Image helpers
-# ---------------------------------------------------------------------------
-def _get_png_dimensions(image_path):
-    """Read width/height from a PNG header (bytes 16-23 of IHDR chunk)."""
-    try:
-        with open(image_path, 'rb') as f:
-            header = f.read(24)
-            if len(header) >= 24 and header[:8] == b'\x89PNG\r\n\x1a\n':
-                width  = struct.unpack('>I', header[16:20])[0]
-                height = struct.unpack('>I', header[20:24])[0]
-                return width, height
-    except (IOError, struct.error):
-        pass
-    return None, None
-
-
-def _is_diagram_image(image_path):
-    """Reject tiny icons, text-strip renders, MCQ label strips, etc."""
-    width, height = _get_png_dimensions(image_path)
-    if width is None or height is None:
-        return True    # can't tell - keep it
-    if width < MIN_IMG_WIDTH or height < MIN_IMG_HEIGHT:
-        return False
-    if width * height < MIN_IMG_AREA:
-        return False
-    aspect = width / max(height, 1)
-    if aspect > MAX_ASPECT:
-        return False
-    return True
-
-
-def extract_image_paths(text, image_output_dir):
-    """Extract image references from markdown, resolve paths, apply diagram filter."""
-    pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
-    matches = re.findall(pattern, text)
-
-    abs_paths = []
-    for _alt, img_path in matches:
-        resolved = None
-        if os.path.isfile(img_path):
-            resolved = os.path.abspath(img_path)
-
-        if resolved is None:
-            candidate = os.path.join(image_output_dir, os.path.basename(img_path))
-            if os.path.isfile(candidate):
-                resolved = os.path.abspath(candidate)
-
-        if resolved is None:
-            candidate = os.path.normpath(os.path.join(image_output_dir, img_path))
-            if os.path.isfile(candidate):
-                resolved = os.path.abspath(candidate)
-
-        if resolved is None:
-            continue
-        if not _is_diagram_image(resolved):
-            continue
-        abs_paths.append(resolved)
-
-    return abs_paths
-
-
-def extract_marks(text):
-    """
-    Extract total marks from a question's text.
-    Matches patterns like [3], [3 marks], [ 2 marks ].
-    If a question has sub-parts with their own [n marks], they sum.
-    """
-    pattern = r'\[\s*(\d+)\s*(?:marks?)?\s*\]'
-    matches = re.findall(pattern, text, flags=re.IGNORECASE)
-
-    total_marks = 0
-    for s in matches:
-        total_marks += int(s)
-    return total_marks
-
-
-# ---------------------------------------------------------------------------
-# Batch parser
-# ---------------------------------------------------------------------------
-def parse_all_papers(papers_dir, subject_code):
-    """
-    Walk `papers_dir` recursively. For every PDF whose filename matches the
-    Cambridge convention, parse it and accumulate the resulting question records.
-
-    Files that can't be parsed from their filename are skipped with a warning.
-    """
-    all_questions = []
-
-    if not os.path.isdir(papers_dir):
-        print(f"[parse_all_papers] directory not found: {papers_dir}")
-        return all_questions
-
-    for root, _dirs, files in os.walk(papers_dir):
-        for file_name in files:
-            if not file_name.lower().endswith(".pdf"):
+            # ── Skip header / footer zones ─────────────────────────────
+            if ly0 < MARGIN_TOP or ly0 > MARGIN_BOTTOM:
                 continue
 
-            pdf_path = os.path.join(root, file_name)
-            meta = parse_cambridge_filename(file_name)
+            # ── Detect start of next question ──────────────────────────
+            # Only consider lines that are in the left margin — the column
+            # where Cambridge prints question numbers (x0 ≈ 50).
+            # This filters out formula fractions, superscripts, and any
+            # right-aligned page numbers that happen to be digits.
+            if lx0 < Q_NUM_MAX_X:
+                match = q_num_pattern.match(line_text)
+                if match and int(match.group(1)) == expected_q:
+                    # Save the completed previous question
+                    if current_q:
+                        questions.append(current_q)
 
-            if meta is None:
-                print(f"[parse_all_papers] skipping (name unparseable): {file_name}")
+                    # Initialise the new question record
+                    current_q = {
+                        "id": f"{subject_code}_{session_year}_{paper_type}_q{expected_q}",
+                        "subject": subject_code,
+                        "paper_type": paper_type,
+                        "session": session_year,
+                        "year": actual_year,
+                        "topic": "Unknown",
+                        "marks": 0,
+                        "pdf": os.path.abspath(pdf_path),
+                        "text": "",
+                        "regions": [],
+                    }
+                    expected_q += 1
+
+            # ── Accumulate content into the active question ────────────
+            if current_q is None:
                 continue
 
-            # If the caller asked for a specific subject, filter.
-            if subject_code and meta["subject"] != subject_code:
-                continue
+            current_q["text"] += line_text + "\n"
 
-            print(f"[parse_all_papers] {file_name}  →  "
-                  f"subject={meta['subject']}, year={meta['year']}, "
-                  f"paper_type={meta['paper_type']} (code={meta['paper_code']})")
+            # Extract marks e.g. [2] or [ 3 ]
+            for m in re.findall(r"\[\s*(\d+)\s*\]", line_text):
+                current_q["marks"] += int(m)
 
-            questions = parse_paper(
-                pdf_path,
-                subject_code=meta["subject"],
-                paper_type=meta["paper_type"],
-                year=meta["year"],
-                paper_code=meta["paper_code"],
-                session=meta["session"],
-            )
-            all_questions.extend(questions)
+            # Update bounding-box regions (one rect per page)
+            if (
+                not current_q["regions"]
+                or current_q["regions"][-1]["page"] != page_num
+            ):
+                # New page → start a new region rect
+                current_q["regions"].append(
+                    {
+                        "page": page_num,
+                        "rect": [0, max(0.0, ly0 - 10), page_width, ly1 + 10],
+                    }
+                )
+            else:
+                # Same page → extend the bottom of the existing rect
+                current_q["regions"][-1]["rect"][3] = max(
+                    current_q["regions"][-1]["rect"][3], ly1 + 10
+                )
 
+    # Append the final question
+    if current_q:
+        questions.append(current_q)
+
+    # ── MCQ mark fix ───────────────────────────────────────────────────
+    # Paper 1 questions carry no [N] marks bracket — each is worth 1 mark.
+    for q in questions:
+        if q["marks"] == 0 and paper_type.startswith("p1"):
+            q["marks"] = 1
+
+    doc.close()
+    return questions
+
+
+# ── Batch helper ────────────────────────────────────────────────────
+
+def parse_all_papers(papers_dir: str, subject_code: str) -> List[Dict[str, Any]]:
+    """
+    Legacy helper: parse all PDFs in a directory tree.
+    """
+    all_questions: List[Dict[str, Any]] = []
+    for root, _, files in os.walk(papers_dir):
+        for file in files:
+            if file.endswith(".pdf"):
+                questions = parse_paper(os.path.join(root, file))
+                all_questions.extend(questions)
     return all_questions
