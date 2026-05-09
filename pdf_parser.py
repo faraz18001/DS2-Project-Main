@@ -106,7 +106,14 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
         # Grouping into 5-pt buckets ensures the left-most element (question
         # number, x0≈50) is processed before the question text (x0≈71), so
         # the question boundary is detected before the text is accumulated.
-        all_lines.sort(key=lambda l: (round(l[1] / 5) * 5, l[0]))
+        def visual_row_sort_key(line_tuple: tuple) -> tuple:
+            """Group lines into 5-pt vertical buckets, then sort by x-position."""
+            x_pos = line_tuple[0]
+            y_pos = line_tuple[1]
+            bucketed_y = round(y_pos / 5) * 5
+            return (bucketed_y, x_pos)
+
+        all_lines.sort(key=visual_row_sort_key)
 
         for lx0, ly0, lx1, ly1, line_text in all_lines:
 
