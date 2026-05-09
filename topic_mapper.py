@@ -197,7 +197,10 @@ def tag_question(
         return ["Uncategorized"]
 
     # 1. Resolve tier and get the topic dict to search
-    tier = get_paper_tier(subject_code, paper_type) if paper_type else "ALL"
+    if paper_type != "":
+        tier = get_paper_tier(subject_code, paper_type)
+    else:
+        tier = "ALL"
     topics_to_search = _resolve_topic_dict(keyword_map[subject_code], tier)
 
     if not topics_to_search:
@@ -228,9 +231,13 @@ def tag_question(
         return ["Uncategorized"]
 
     # 4. Rank and select
-    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    def get_score(item):
+        return item[1]
+        
+    ranked = sorted(scores.items(), key=get_score, reverse=True)
     best_score = ranked[0][1]
-    result = [ranked[0][0]]
+    result = []
+    result.append(ranked[0][0])
 
     # Include subsequent topics only if they score ≥ 60% of the top topic
     for topic_name, score in ranked[1:]:
@@ -267,7 +274,11 @@ def build_composite_keys(
     Returns:
         list of composite key strings, one per topic.
     """
-    return [f"{subject_code}_{topic}_{paper_type}" for topic in topics]
+    keys = []
+    for topic in topics:
+        new_key = subject_code + "_" + topic + "_" + paper_type
+        keys.append(new_key)
+    return keys
 
 
 
