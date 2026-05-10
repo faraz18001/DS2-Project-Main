@@ -15,7 +15,7 @@ TEMPLATES_DIR: str = os.path.join(BASE_DIR, "templates")
 STATIC_DIR: str = os.path.join(BASE_DIR, "static")
 
 # ── Index Persistence ───────────────────────────────────────────
-INDEX_PATH: str = os.path.join(DATA_DIR, "index.json")
+INDEX_PATH: str = os.path.join(DATA_DIR, "index", "physics_master_index.json")
 QUESTION_DB_PATH: str = os.path.join(DATA_DIR, "question_db.json")
 
 # ── Keyword Map ─────────────────────────────────────────────────
