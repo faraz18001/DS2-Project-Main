@@ -451,7 +451,19 @@ def run_search(
     return candidates
 
 
-################# eliminated knapsack and introduced a random greedy algorithm approach #######################
+################# eliminated knapsack and introduced a random shuffle algorithm and greedy approach #######################
+def fisher_yates_shuffle(lst):
+    """
+    In-place Fisher-Yates shuffle. O(n).
+    At each position i, pick a random index j in [0, i]
+    and swap — guarantees a uniformly random permutation.
+    """
+    for i in range(len(lst)):
+        j = random.randint(0,i)
+        lst[i], lst[j] = lst[j], lst[i]
+        
+    return lst
+    
 def select_questions(
     candidates: List[Dict[str, Any]],
     target: int,
@@ -461,9 +473,7 @@ def select_questions(
     info("(random pick: shuffle the candidate questions randomly and use greedy algorith to pick questions until we reach the target marks)")
 
     #randomly shuffling candidate questions:
-    for i in range(len(candidates)):
-        j = random.randint(i)
-        candidates[i], candidates[j] = candidates[j], candidates[i]
+    candidates = fisher_yates_shuffle(candidates)
 
     t0 = time.perf_counter()
     selected = []
