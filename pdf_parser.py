@@ -26,7 +26,7 @@ import fitz  # PyMuPDF
 
 
 # ── Layout constants (A4 Cambridge past paper geometry) ─────────────
-MARGIN_TOP: float = 55.0  # Skip PDF header region (page numbers, logos)
+MARGIN_TOP: float = 60.0  # Skip PDF header region (page numbers, logos)
 MARGIN_BOTTOM: float = 788.0  # Skip PDF footer region (copyright, page refs)
 Q_NUM_MAX_X: float = 85.0  # Question numbers are always in the left margin
 

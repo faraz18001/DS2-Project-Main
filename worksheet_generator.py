@@ -32,7 +32,7 @@ WS_MARGIN_BOTTOM = 50.0
 # We crop to the CONTENT rectangle only:
 SRC_CROP_LEFT   = 42.0
 SRC_CROP_RIGHT  = 548.0
-SRC_CROP_TOP    = 55.0
+SRC_CROP_TOP    = 60
 SRC_CROP_BOTTOM = 785.0
 
 # Usable width on the worksheet page

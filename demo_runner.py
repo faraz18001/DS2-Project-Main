@@ -18,7 +18,7 @@ Run it from the project root with:
 
 Press Ctrl-C at any prompt to bail out.
 """
-
+import random
 import os
 import sys
 import time
@@ -451,17 +451,24 @@ def run_search(
     return candidates
 
 
-def run_knapsack(
+################# eliminated knapsack and introduced a random greedy algorithm approach #######################
+def select_questions(
     candidates: List[Dict[str, Any]],
     target: int,
 ) -> tuple:
-    section("STAGE 7  ·  Greedy selection — hit the target marks")
+    section("STAGE 7  ·  Hit the target marks")
     info(f"target = {target} marks   pool = {len(candidates)} questions")
-    info("(greedy: pick questions until we reach the target)")
+    info("(random pick: shuffle the candidate questions randomly and use greedy algorith to pick questions until we reach the target marks)")
+
+    #randomly shuffling candidate questions:
+    for i in range(len(candidates)):
+        j = random.randint(i)
+        candidates[i], candidates[j] = candidates[j], candidates[i]
 
     t0 = time.perf_counter()
     selected = []
     total_marks = 0
+    
     for q in candidates:
         if total_marks + q["marks"] <= target:
             selected.append(q)
@@ -632,7 +639,7 @@ def main() -> None:
             if not candidates:
                 info("no questions found — relax your filters")
             else:
-                selected, actual = run_knapsack(candidates, target)
+                selected, actual = select_questions(candidates, target)
                 maybe_generate(selected, subject, tier, actual)
 
             print()

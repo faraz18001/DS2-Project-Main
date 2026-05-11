@@ -71,3 +71,5 @@ PAPER_TIER_MAP: Dict[str, str] = {
 
 # ── Paper Types ──────────────────────────────────────────────────
 PAPER_TYPES: List[str] = ["P1", "P2", "P3", "P4", "P5"]
+
+
