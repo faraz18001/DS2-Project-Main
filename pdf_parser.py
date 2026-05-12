@@ -1,21 +1,8 @@
 r"""
 pdf_parser.py — Bounding Box (BBox) PDF ingestion and question extraction.
 
-FIX (v2): Switched from block-level to LINE-level parsing.
-Root cause of original bug:
-  - Cambridge PDFs merge multiple questions into one block, e.g.:
-      "D  46 ± 4 cm s–2 \n\n\n3  What are the SI base units..."
-    The regex ^(\d+)\s only checked the BLOCK start, so Q3 was never found.
-  - Additionally, formula fractions (e.g. "3" from 3/2) and page number
-    headers (e.g. "3" printed at top of page 3) both triggered false matches.
-
-Fix approach:
-  1. Use get_text("dict") for LINE-level bounding boxes.
-  2. Only detect question numbers on lines in the LEFT MARGIN (x0 < Q_NUM_MAX_X=85).
-     - Real question numbers: x0 ≈ 50 (always left-aligned in Cambridge papers).
-     - Formula fractions: x0 ≥ 95 (centre/right of page).
-     - Page number headers: x0 ≈ 295 (right-aligned or centre).
-  3. Skip the header/footer zones (ly0 < MARGIN_TOP or ly0 > MARGIN_BOTTOM).
+Works by reading the PDF line-by-line, grouping text into 5-point vertical buckets 
+to fix misalignments, and using an x < 85 "left margin fence" to find question numbers.
 """
 
 import os
@@ -63,13 +50,9 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
         print(f"Warning: Filename '{file_name}' does not match PapaCambridge standard.")
         return []
 
-    # ── 2. Regex: match a question number at the START of a line ──────
-    # Accepts:
-    #   "3"           → number only (question number on its own line)
-    #   "3 What are…" → number followed by space and content
-    # Does NOT accept:
-    #   "3/2"         → filtered by x0 check (appears in centre of page)
-    #   "30 Green…"   → correctly matches Q30
+    # ── 2. Regex: Match isolated question numbers (e.g. "3 ") but ignore mid-text numbers. ──────
+
+
     q_num_pattern = re.compile(r"^(\d{1,2})(?:\s+\S|\s*$)")
 
     # ── 3. Parse PDF line-by-line ──────────────────────────────────────
@@ -96,13 +79,9 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
                 if line_text:
                     all_lines.append((lx0, ly0, lx1, ly1, line_text))
 
-        # Sort lines by visual row first, then left-to-right within that row.
-        # Cambridge PDFs render question numbers and their text on the SAME
-        # visual line but as separate elements with y0 differing by ~1-2 px
-        # (e.g. number "3" at y0=520.8, question text at y0=519.7).
-        # Grouping into 5-pt buckets ensures the left-most element (question
-        # number, x0≈50) is processed before the question text (x0≈71), so
-        # the question boundary is detected before the text is accumulated.
+        # ── 5-Point Bucket Sort ────────────────────────────────────────────
+        # Fixes 1-2px vertical misalignments. Snaps y0 to the nearest 5, forcing
+        # text on the same visual row to tie, so x0 tie-breaker sorts left-to-right!
         def visual_row_sort_key(line_tuple: tuple) -> tuple:
             """Group lines into 5-pt vertical buckets, then sort by x-position."""
             x_pos = line_tuple[0]
@@ -118,10 +97,7 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
                 continue
 
             # ── Detect start of next question ──────────────────────────
-            # Only consider lines that are in the left margin — the column
-            # where Cambridge prints question numbers (x0 ≈ 50).
-            # This filters out formula fractions, superscripts, and any
-            # right-aligned page numbers that happen to be digits.
+            # Only check inside the Left Margin Fence (x0 < 85) to ignore formula fractions.
             if lx0 < Q_NUM_MAX_X:
                 match = q_num_pattern.match(line_text)
                 if match and int(match.group(1)) == expected_q:
@@ -154,9 +130,9 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
             for m in re.findall(r"\[\s*(\d+)\s*\]", line_text):
                 current_q["marks"] += int(m)
 
-            # Update bounding-box regions (one rect per page)
+            # ── Update master crop box (scissors template) ─────────────────
             if not current_q["regions"] or current_q["regions"][-1]["page"] != page_num:
-                # New page → start a new region rect
+                # Start a new full-width green crop box with 10px padding above
                 current_q["regions"].append(
                     {
                         "page": page_num,
@@ -164,7 +140,7 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
                     }
                 )
             else:
-                # Same page → extend the bottom of the existing rect
+                # Pull the bottom edge of the crop box further down as we read more text
                 current_q["regions"][-1]["rect"][3] = max(
                     current_q["regions"][-1]["rect"][3], ly1 + 10
                 )
