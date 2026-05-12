@@ -213,6 +213,39 @@ class InvertedIndex:
         """Filter already-resolved records by inclusive year range."""
         return [r for r in results if year_from <= r["year"] <= year_to]
 
+
+    # ────────────────────────────────────────────────────────────────────
+    # View Operation:
+    # ────────────────────────────────────────────────────────────────────
+    
+    def view_tree(self, max_keys: int = 10) -> None:
+        """
+        Print the main_index as a tree structure.
+        Shows composite keys with their postings lists beneath them.
+        """
+        if not self.main_index:
+            print("  (index is empty)")
+            return
+
+        all_keys = list(self.main_index.keys())
+        # Manual bubble sort
+        for i in range(len(all_keys)):
+            for j in range(i + 1, len(all_keys)):
+                if all_keys[i] > all_keys[j]:
+                    all_keys[i], all_keys[j] = all_keys[j], all_keys[i]
+
+        for key in all_keys[:max_keys]:
+            print(f"  {key}")
+            question_ids = self.main_index[key]
+            for i, qid in enumerate(question_ids):
+                connector = "└── " if i == len(question_ids) - 1 else "├── "
+                print(f"  {connector}{qid}")
+
+        if len(all_keys) > max_keys:
+            print(f"  ... and {len(all_keys) - max_keys} more keys")
+    
+    
+
     # ────────────────────────────────────────────────────────────────────
     # DEMO / INTROSPECTION
     # Used by demo_runner.py to walk the user through what's in the index.
@@ -318,6 +351,7 @@ class InvertedIndex:
 
     def __contains__(self, key: str) -> bool:
         return key in self.main_index
+
 
     # ────────────────────────────────────────────────────────────────────
     # PERSISTENCE
