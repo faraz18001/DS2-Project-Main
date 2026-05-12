@@ -61,6 +61,13 @@ class InvertedIndex:
     """
 
     def __init__(self, keyword_map_path: Optional[str] = None) -> None:
+        """
+        Initialise an empty inverted index.
+
+        Args:
+            keyword_map_path: accepted for backward compatibility with call
+                            sites in config.py but not used internally.
+        """
         self.main_index: Dict[str, List[str]] = {}
         self.question_store: Dict[str, Dict[str, Any]] = {}
 
@@ -128,6 +135,7 @@ class InvertedIndex:
         Purge a question id from EVERY postings list and drop it from
         the store. Useful when you want to mass-remove a question
         without knowing which keys reference it.
+        Time: O(k) where k = number of keys in main_index.
         """
         self.question_store.pop(question_id, None)
         empty_keys: List[str] = []
@@ -219,7 +227,7 @@ class InvertedIndex:
 
 
     # ────────────────────────────────────────────────────────────────────
-    # View Operation:
+    # VIEW OPERATION — print the index as a tree
     # ────────────────────────────────────────────────────────────────────
     
     def view_tree(self, max_keys: int = 10) -> None:
@@ -352,7 +360,16 @@ class InvertedIndex:
         return out
 
     def sample_postings(self, key: str, n: int = 3) -> List[Dict[str, Any]]:
-        """First `n` resolved records for a key — used as a preview."""
+        """
+        Return the first `n` resolved records for `key`.
+
+        Convenience preview method — fetches a small slice of a postings
+        list without retrieving everything under the key.
+
+        Args:
+            key: composite index key
+            n:   number of records to return (default 3)
+        """
         ids = self.query(key)[:n]
         return self.fetch_documents(ids)
 

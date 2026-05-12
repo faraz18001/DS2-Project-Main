@@ -1,14 +1,26 @@
 """
 worksheet_generator.py — A4 PDF worksheet builder.
 
-Takes a list of selected question records and compiles them into
-a clean, annotatable A4 PDF using PyMuPDF's vector-preserving
-show_pdf_page() stamping method.
+Takes a list of selected question records and compiles them into a
+clean A4 PDF using PyMuPDF's vector-preserving show_pdf_page() method.
 
-The source Cambridge PDFs have margins with "DO NOT WRITE IN THIS MARGIN"
-text, barcodes, page numbers, footers, etc. We crop all of that away so the
-worksheet only contains clean question content.
+Pipeline:
+    1. Open a blank A4 document and stamp a header (title + total marks).
+    2. For each question, open its source Cambridge PDF and copy each
+       region using show_pdf_page() — this preserves vectors, fonts,
+       and diagrams at full quality without rasterisation.
+    3. Each region is cropped to remove Cambridge's margin sidebars,
+       barcodes, and footer chrome before stamping.
+    4. A thin dashed separator line is drawn between questions.
+    5. The completed worksheet is saved and compressed to disk.
+
+Key constants (all in PDF points, 1 point = 1/72 inch):
+    PAGE_W / PAGE_H   — A4 dimensions (595 × 842)
+    WS_MARGIN_*       — worksheet page margins
+    SRC_CROP_*        — crop bounds applied to source Cambridge PDFs
+    USABLE_W          — available content width after margins
 """
+
 import os
 import fitz
 from typing import Any, Dict, List, Tuple
@@ -35,9 +47,8 @@ SRC_CROP_RIGHT  = 548.0
 SRC_CROP_TOP    = 60
 SRC_CROP_BOTTOM = 785.0
 
-# Usable width on the worksheet page
-USABLE_W = PAGE_W - WS_MARGIN_LEFT - WS_MARGIN_RIGHT
-
+# Usable content width on the worksheet page after left and right margins
+USABLE_W = PAGE_W - WS_MARGIN_LEFT - WS_MARGIN_RIGHT  # 595 - 45 - 45 = 505
 
 def generate_worksheet(
     selected_questions: List[Dict[str, Any]],
@@ -45,12 +56,22 @@ def generate_worksheet(
     title: str = "Worksheet"
 ) -> str:
     """
-    Build an A4 PDF worksheet from a list of question records.
+    Build an A4 PDF worksheet from a list of selected question records.
 
-    Each question dict must have at least:
-        pdf      — path to the source PDF
-        marks    — total marks for this question
-        regions  — list of {page: int, rect: [x0, y0, x1, y1]}
+    Creates a new blank A4 document, stamps a header, then iterates
+    through the question list calling _stamp_question() for each one.
+    The final PDF is saved with garbage collection and deflate compression.
+
+    Args:
+        selected_questions: list of question dicts. Each must contain:
+                                pdf     — absolute path to the source PDF
+                                marks   — integer mark value
+                                regions — list of {page, rect} dicts
+        output_path:        where to save the worksheet PDF
+        title:              text shown in the worksheet header
+
+    Returns:
+        output_path (the path the file was saved to)
     """
 
     ws_doc = fitz.open()  # new empty document
@@ -73,7 +94,19 @@ def generate_worksheet(
 # ── Header ───────────────────────────────────────────────────────────
 
 def _stamp_header(page: fitz.Page, title: str, total_marks: int) -> float:
-    """Draw a clean header and return the y position below it."""
+    """
+    Stamp the worksheet title and total marks onto the first page,
+    then draw a horizontal rule beneath them.
+
+    Args:
+        page:        the fitz.Page to draw on
+        title:       worksheet title string
+        total_marks: sum of marks across all selected questions
+
+    Returns:
+        y cursor position just below the header rule, ready for
+        the first question to be stamped.
+    """
 
     y = WS_MARGIN_TOP + 18
     page.insert_text(
@@ -114,8 +147,30 @@ def _stamp_question(
     q_number: int,
 ) -> Tuple[fitz.Page, float]:
     """
-    Stamp one question's regions onto the worksheet, cropping away
-    the Cambridge sidebar and header/footer chrome.
+    Stamp all regions of one question onto the worksheet.
+
+    For each region in question['regions']:
+        1. Build a clip rect by intersecting the parser's region rect
+           with SRC_CROP_* bounds to remove Cambridge chrome.
+        2. Scale the region to fit the usable worksheet width.
+        3. Apply a fit check — if the region is too tall for the
+           remaining space on the current page, either shrink it
+           (within 15% tolerance) or open a new page.
+        4. Call ws_page.show_pdf_page() to stamp the vector content.
+
+    After all regions, draws a thin dashed separator line.
+
+    Args:
+        ws_doc:    the worksheet fitz.Document (needed to add new pages)
+        ws_page:   the current fitz.Page being written to
+        y_cursor:  current vertical position on the page (in points)
+        question:  full question record dict
+        q_number:  1-based question number (currently unused in output
+                   but kept for future labelling)
+
+    Returns:
+        (ws_page, y_cursor) — updated page and cursor after stamping.
+        ws_page may be a new page object if a page break occurred.
     """
 
     src_doc = fitz.open(question["pdf"])
@@ -139,6 +194,9 @@ def _stamp_question(
             continue  # degenerate region — skip
 
         # ── Scale to fit the usable width ────────────────────────────
+        # scale maps source content width → worksheet usable width.
+        # Since source PDFs are A4 (595 wide) and we crop margins,
+        # scale is typically very close to 1.0.
         src_content_w = clip.width        # e.g. 548 - 42 = 506
         scale = USABLE_W / src_content_w  # e.g. 505 / 506 ≈ 1.0
         dest_h = clip.height * scale
@@ -201,9 +259,3 @@ def _stamp_question(
 
     return ws_page, y_cursor
 
-
-# ── Helpers ──────────────────────────────────────────────────────────
-
-def _calculate_answer_space(marks: int) -> float:
-    """30 points per mark, clamped between 60 and 300."""
-    return max(60.0, min(300.0, marks * 30.0))
