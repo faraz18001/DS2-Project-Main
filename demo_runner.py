@@ -754,8 +754,8 @@ def _demo_union(index: InvertedIndex) -> None:
     print()
 
     try:
-        k1 = input("  key 1 [eg 9702_Kinematics_p2]: ").strip() or "9702_Kinematics_p2"
-        k2 = input("  key 2 [eg 9702_Dynamics_p2]:   ").strip() or "9702_Dynamics_p2"
+        k1 = input("  key 1 [eg 9702_Kinematics_p2, 9702_Waves_p2, 9702_D.C. circuits_p2]: ").strip() or "9702_Kinematics_p2"
+        k2 = input("  key 2 [9702_Dynamics_p2, 9702_Forces density and pressure_p2, 9702_Work energy and power_p2]:   ").strip() or "9702_Dynamics_p2"
     except (EOFError, KeyboardInterrupt):
         return
 

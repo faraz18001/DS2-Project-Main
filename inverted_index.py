@@ -1,69 +1,71 @@
 """
 inverted_index.py — Custom Inverted Index data structure.
 
-Maps composite keys (e.g. "9702_Kinematics_p21") to postings lists
-of question IDs. Full question records live in a parallel store keyed
-by id, so we never duplicate the heavy payload across multiple keys.
+Maps composite keys of the form "{subject}_{topic}_{paper_type}"
+to postings lists of question IDs.
 
-Public operations:
-    Core
-        insert(key, record)           — add a question id under a key
-        query(key)                    — get list of ids under a key  (SEARCH)
-        delete(key, qid=None)         — remove a single id, or a whole key
-        remove_question(qid)          — purge an id from EVERY postings list
-
-    Set ops
-        union(keys)                   — ids appearing in ANY of the keys
-        intersect(keys)               — ids appearing in ALL of the keys
-
-    Hydration
-        fetch_documents(ids, …)       — resolve ids to full records, optional year filter
-        filter_by_year(records, …)    — legacy filter on already-resolved records
-
-    Demo / Introspection (used by the terminal demo)
-        list_subjects()               — distinct subject codes seen in the index
-        list_topics(subject)          — distinct topics under a subject
-        list_paper_types(subject)     — distinct paper variants (p11, p21, …) under a subject
-        list_years(subject=None)      — sorted list of years present
-        keys_for(subject, topics, ptype) — composite keys built from filters
-        sample_postings(key, n)       — first N records under a key (preview)
-        stats()                       — quick summary numbers
-
-    Persistence
-        save(path) / load(path)       — JSON round-trip
+Full question records live in a separate question_store keyed by id,
+so the same record is never duplicated even if it appears under
+multiple keys (e.g. a question tagged with two topics).
 
 KEY FORMAT
-----------
-"{subject_code}_{topic}_{paper_type}"
+──────────
+    "9702_Kinematics_p21"  →  A-Level Physics, Kinematics, paper variant 21
+    "5054_Forces_p11"      →  O-Level Physics, Forces, paper variant 11
 
-    "9702_Kinematics_p21"   →  A-Level Physics, Kinematics, AS-tier paper variant 21
-    "5054_Forces_p11"       →  O-Level Physics, Forces, paper variant 11
+Year is NOT encoded in the key — it is applied as a post-lookup filter
+via fetch_documents(year_from, year_to).
 
-Year is NOT in the key (it is a range, not a point) — applied as a
-post-lookup filter via fetch_documents().
+Public API
+──────────
+    Core operations
+        insert(key, record)      — add a question under a key           O(1)
+        query(key)               — get postings list for a key          O(1)
+        delete(key, qid=None)    — remove one id or the whole key
+        remove_question(qid)     — purge an id from every postings list
+
+    Set operations
+        union(keys)              — ids in ANY of the keys
+        intersect(keys)          — ids in ALL of the keys
+
+    Hydration
+        fetch_documents(ids)     — resolve ids → full records, optional year filter
+
+    Introspection  (used by demo_runner.py)
+        list_subjects()          — distinct subject codes in the index
+        list_topics(subject)     — distinct topics for a subject
+        list_paper_types(subject)— distinct paper variants for a subject
+        list_years(subject)      — sorted list of years present
+        keys_for(subject, topics, paper_types) — build composite keys
+        stats()                  — summary numbers
+        view_tree(max_keys)      — print the index as a tree (class method)
+
+    Persistence
+        save(path)               — serialise to JSON
+        load(path)               — deserialise from JSON
 """
-
 import json
 import os
 from typing import Any, Dict, List, Optional, Set
 
 
 class InvertedIndex:
-    """Inverted index: composite key → list of question ids."""
+    """
+    Inverted index: composite key → postings list of question ids.
+
+    Two internal data structures:
+        main_index     : Dict[str, List[str]]
+                         composite_key → [question_id, ...]
+        question_store : Dict[str, Dict[str, Any]]
+                         question_id   → full question record
+    """
 
     def __init__(self, keyword_map_path: Optional[str] = None) -> None:
         self.main_index: Dict[str, List[str]] = {}
         self.question_store: Dict[str, Dict[str, Any]] = {}
 
-        # # Optional keyword map — used by the terminal demo to enumerate
-        # # the topics it should offer the user when they pick a subject.
-        # self.keyword_map: Dict[str, Any] = {}
-        # if keyword_map_path and os.path.isfile(keyword_map_path):
-        #     with open(keyword_map_path, "r", encoding="utf-8") as f:
-        #         self.keyword_map = json.load(f)
-
     # ────────────────────────────────────────────────────────────────────
-    # CORE OPERATIONS — Insert, Search (Query), Delete
+    # CORE OPERATIONS — Insert, Query, Delete
     # ────────────────────────────────────────────────────────────────────
 
     def insert(self, key: str, record: Dict[str, Any]) -> None:
@@ -190,8 +192,10 @@ class InvertedIndex:
         year_to: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Resolve a list of question ids back to their full records,
-        optionally filtering by year range (inclusive).
+        Resolve a list of question ids to their full records from
+        question_store (used for worksheet generation), optionally filtering by year range (inclusive).
+
+        Any id not present in question_store is silently skipped.
         """
         results: List[Dict[str, Any]] = []
         for qid in question_ids:
@@ -220,8 +224,16 @@ class InvertedIndex:
     
     def view_tree(self, max_keys: int = 10) -> None:
         """
-        Print the main_index as a tree structure.
-        Shows composite keys with their postings lists beneath them.
+        Print main_index as a visual tree showing composite keys
+        and their postings lists.
+
+        Keys are sorted alphabetically (manual bubble sort — no built-ins).
+        Shows at most max_keys keys to avoid flooding the terminal.
+
+        Example output:
+            9702_Kinematics_p21
+            ├── 9702_w25_p21_q1
+            └── 9702_w25_p21_q2
         """
         if not self.main_index:
             print("  (index is empty)")
@@ -253,11 +265,12 @@ class InvertedIndex:
 
     def list_subjects(self) -> List[str]:
         """
-        Distinct subject codes that appear in any indexed key.
-        Returned sorted ascending.
+        Return distinct subject codes present in the index, sorted ascending.
 
-        How: every composite key starts with "{subject}_…", so we just
-        peel the first underscore-segment off every key.
+        How: every composite key starts with "{subject}_", so we peel
+        the first underscore-delimited segment off every key.
+
+        Example: "9702_Kinematics_p21" → subject = "9702"
         """
         subjects: Set[str] = set()
         for key in self.main_index:
@@ -266,13 +279,14 @@ class InvertedIndex:
 
     def list_topics(self, subject: str) -> List[str]:
         """
-        Distinct topics for `subject`, derived from existing index keys.
+        Return distinct topics for `subject`, derived from index keys.
 
-        Key form is "{subject}_{topic}_{paper_type}", and topics may
-        themselves contain spaces or hyphens but Cambridge subject codes
-        are always pure digits — so splitting "from the right once" lets
-        us peel paper_type off, and "from the left once" peels subject
-        off, leaving the topic in the middle untouched.
+        Key format is "{subject}_{topic}_{paper_type}".
+        Topics can contain spaces (e.g. "Forces density and pressure"),
+        so we split from the left once (to remove subject) and from
+        the right once (to remove paper_type), leaving the topic intact.
+
+        Example: "9702_Kinematics_p21" → topic = "Kinematics"
         """
         topics: Set[str] = set()
         prefix = subject + "_"
@@ -286,7 +300,11 @@ class InvertedIndex:
         return sorted(topics)
 
     def list_paper_types(self, subject: str) -> List[str]:
-        """Distinct paper variants under a subject (e.g. ['p11','p21','p41'])."""
+        """
+        Return distinct paper variant codes for `subject`, sorted ascending.
+
+        Example: "9702_Kinematics_p21" → paper_type = "p21"
+        """
         ptypes: Set[str] = set()
         prefix = subject + "_"
         for key in self.main_index:
@@ -297,8 +315,8 @@ class InvertedIndex:
 
     def list_years(self, subject: Optional[str] = None) -> List[int]:
         """
-        Distinct years present in the question_store.
-        If `subject` is given, restrict to records of that subject.
+        Return distinct years present in question_store, sorted ascending.
+        If `subject` is given, restrict to records for that subject only.
         """
         years: Set[int] = set()
         for record in self.question_store.values():
@@ -316,12 +334,16 @@ class InvertedIndex:
         paper_types: List[str],
     ) -> List[str]:
         """
-        Build the composite keys you'd pass to union()/intersect() for
-        a (subject, topics, paper_types) selection. Convenience helper
-        for the terminal demo so it can show the user exactly which
-        keys are about to be queried.
+        Build composite keys for a (subject, topics, paper_types) selection.
 
-        Cartesian product over topics × paper_types.
+        Returns the Cartesian product of topics × paper_types, formatted
+        as composite key strings. Used by demo_runner.py in STAGE 6 to
+        show the user exactly which keys are about to be queried.
+
+        Example:
+            keys_for("9702", ["Kinematics", "Dynamics"], ["p21", "p22"])
+            → ["9702_Kinematics_p21", "9702_Kinematics_p22",
+               "9702_Dynamics_p21",   "9702_Dynamics_p22"]
         """
         out: List[str] = []
         for t in topics:
@@ -335,7 +357,15 @@ class InvertedIndex:
         return self.fetch_documents(ids)
 
     def stats(self) -> Dict[str, Any]:
-        """Quick summary of what's in the index."""
+        """
+        Return a summary dict of what is currently in the index.
+
+        Keys:
+            n_keys       — number of composite keys in main_index
+            n_questions  — number of records in question_store
+            n_subjects   — number of distinct subject codes
+            avg_postings — average postings list length across all keys
+        """
         return {
             "n_keys":       len(self.main_index),
             "n_questions":  len(self.question_store),
@@ -347,9 +377,11 @@ class InvertedIndex:
         }
 
     def __len__(self) -> int:
+        """Return the number of question records in the store."""
         return len(self.question_store)
 
     def __contains__(self, key: str) -> bool:
+        """Return True if `key` exists in main_index."""
         return key in self.main_index
 
 
@@ -358,6 +390,10 @@ class InvertedIndex:
     # ────────────────────────────────────────────────────────────────────
 
     def save(self, path: str) -> None:
+        """
+        Serialise main_index and question_store to a JSON file at `path`.
+        Creates parent directories if they do not exist.
+        """
         data = {
             "main_index":     self.main_index,
             "question_store": self.question_store,
@@ -367,6 +403,10 @@ class InvertedIndex:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     def load(self, path: str) -> None:
+        """
+        Deserialise main_index and question_store from a JSON file at `path`.
+        Replaces any existing data in the instance.
+        """
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         self.main_index     = data["main_index"]
