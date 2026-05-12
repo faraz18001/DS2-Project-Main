@@ -55,12 +55,12 @@ class InvertedIndex:
         self.main_index: Dict[str, List[str]] = {}
         self.question_store: Dict[str, Dict[str, Any]] = {}
 
-        # Optional keyword map — used by the terminal demo to enumerate
-        # the topics it should offer the user when they pick a subject.
-        self.keyword_map: Dict[str, Any] = {}
-        if keyword_map_path and os.path.isfile(keyword_map_path):
-            with open(keyword_map_path, "r", encoding="utf-8") as f:
-                self.keyword_map = json.load(f)
+        # # Optional keyword map — used by the terminal demo to enumerate
+        # # the topics it should offer the user when they pick a subject.
+        # self.keyword_map: Dict[str, Any] = {}
+        # if keyword_map_path and os.path.isfile(keyword_map_path):
+        #     with open(keyword_map_path, "r", encoding="utf-8") as f:
+        #         self.keyword_map = json.load(f)
 
     # ────────────────────────────────────────────────────────────────────
     # CORE OPERATIONS — Insert, Search (Query), Delete

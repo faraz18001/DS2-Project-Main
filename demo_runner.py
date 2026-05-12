@@ -199,7 +199,7 @@ def pick_level() -> str:
     return ask_choice("level: ", ["O-Level", "A-Level"])
 
 
-def pick_tier() -> str:
+def pick_tier(level : str) -> str:
     """
     NEW — only shown for A-Level.
     Returns "AS", "A2", or "Both".
@@ -207,20 +207,26 @@ def pick_tier() -> str:
     are passed to the knapsack — the user never sees the paper-type
     picker separately.
     """
-    section("STAGE 2  ·  Pick a tier  (A-Level only)")
-    info("AS  = first year (papers 1x, 2x, 3x)")
-    info("A2  = second year (papers 4x, 5x)")
-    info("Both= all A-Level papers combined")
-    tier = ask_choice(
-        "tier: ",
-        ["AS", "A2", "Both"],
-        labeller=lambda t: {
-            "AS":   "AS   — first year papers (p1x, p2x, p3x)",
-            "A2":   "A2   — second year papers (p4x, p5x)",
-            "Both": "Both — all A-Level papers",
-        }.get(t, t),
-    )
-    return tier
+    section("STAGE 3a  ·  Pick a tier  (A-Level only)")
+    
+    if (level not in ["A-Level", "O-Level"]): #exception handling for incorrect input
+        return None
+    
+    if level == "O-Level":
+        return "ALL"
+    else:
+        info("AS  = first year (papers 1x, 2x, 3x)")
+        info("A2  = second year (papers 4x, 5x)")
+        
+        tier = ask_choice(
+            "tier: ",
+            ["AS", "A2"],
+            labeller=lambda t: {
+                "AS":   "AS   — first year papers (p1x, p2x, p3x)",
+                "A2":   "A2   — second year papers (p4x, p5x)",
+            }.get(t, t),
+        )
+        return tier
 
 
 def pick_paper_style() -> str:
@@ -229,7 +235,7 @@ def pick_paper_style() -> str:
     This prevents mixing 1-mark A/B/C/D questions with multi-part
     diagram-based structured questions in the same worksheet.
     """
-    section("STAGE 2b  ·  Pick a paper style")
+    section("STAGE 3b  ·  Pick a paper style")
     info("MCQ    = multiple choice questions (Paper 1, 1 mark each)")
     info("Theory = structured questions with diagrams (Paper 2/4)")
     style = ask_choice(
@@ -244,16 +250,21 @@ def pick_paper_style() -> str:
 
 
 def pick_subject(index: InvertedIndex, level: str) -> Optional[str]:
-    section("STAGE 3  ·  Pick a subject")
+    section("STAGE 2  ·  Pick a subject")
+
     available = index.list_subjects()
     info(f"index.list_subjects() → {available}")
     info("(this walks every key in main_index and peels off the subject prefix)")
 
+
+    #----- target_set contains subjects that belongs to either A level or O level
     target_set = O_LEVEL_SUBJECTS if level == "O-Level" else A_LEVEL_SUBJECTS
+    #----- candidates contains subjects that are in target set AND the inverted_index instance
     candidates = [s for s in available if s in target_set]
 
     if not candidates:
-        info(f"no {level} subjects in the index — try the other level")
+        print()
+        info(f"no {level} subjects available in the index — try the another curriculum level")
         return None
 
     chosen = ask_choice(
@@ -607,19 +618,18 @@ def main() -> None:
                 keyword_map = json.load(f)
 
         while True:
-            level = pick_level()
+            subject = None
+            while not subject:
+                # ── level selection: A-level or O-level ──────────────────────────
+                level = pick_level()
+            
+                # ── subject selection ──────────────────────────
+                subject = pick_subject(index, level)
+            
+            # ── tier selection for A-Level ──────────────────────────
+            tier = pick_tier(level)
 
-            # ── NEW: tier selection for A-Level ──────────────────────────
-            if level == "A-Level":
-                tier = pick_tier()
-            else:
-                # O-Level has no tier split
-                tier = "ALL"
-
-            subject = pick_subject(index, level)
-            if subject is None:
-                continue
-
+                
             # ── Paper style: MCQ or Theory ────────────────────────────────
             paper_style = pick_paper_style()
 
