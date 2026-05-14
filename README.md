@@ -16,7 +16,7 @@ This project automates the creation of custom worksheets for Cambridge Internati
 
 ## Generated Worksheet Preview
 
-![Generated Worksheet Preview](data/output/worksheet_preview.png)
+![Generated Worksheet Preview](assets/worksheet_preview.png)
 
 ## Project Structure
 ```text
