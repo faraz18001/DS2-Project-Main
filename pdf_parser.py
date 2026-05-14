@@ -1,4 +1,4 @@
-r"""
+"""
 pdf_parser.py — Bounding Box (BBox) PDF ingestion and question extraction.
 
 Works by reading the PDF line-by-line, grouping text into 5-point vertical buckets 
@@ -23,13 +23,30 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
     Parse a Cambridge past paper PDF and extract questions as structured records.
 
     Each record contains:
-        id, subject, paper_type, session, year, topic, marks, pdf, text, regions
+        id          — unique question identifier e.g. '9702_w25_p21_q1'
+        subject     — subject code e.g. '9702'
+        paper_type  — paper variant e.g. 'p21'
+        session     — session code e.g. 'w25'
+        year        — integer year e.g. 2025
+        topic       — placeholder 'Unknown' (filled in by tag_question() later)
+        marks       — total marks extracted from [N] brackets
+        pdf         — absolute path to the source PDF
+        text        — raw extracted text of the question
+        regions     — list of {page, rect} dicts, one per page the question
+                      spans, with rect = [x0, y0, x1, y1] in PDF points.
+                      Used by worksheet_generator.py to crop question areas
+                      from the source PDF without rasterisation.
 
-    'regions' is a list of {page, rect} dicts — one per page the question spans —
-    with rect = [x0, y0, x1, y1] in PDF points. Used by the worksheet generator
-    to crop exact question areas from the source PDF without rasterization.
+    Expects PapaCambridge naming convention:
+        {subject}_{session}_qp_{variant}.pdf
+        e.g. 9702_w25_qp_13.pdf
 
-    Expects PapaCambridge naming convention: e.g. 9702_w25_qp_13.pdf
+    Args:
+        pdf_path: path to the Cambridge question-paper PDF
+
+    Returns:
+        list of question record dicts, one per question found in the paper.
+        Returns [] if the filename does not match the expected convention.
     """
 
     # ── 1. Extract metadata from filename ─────────────────────────────
@@ -164,7 +181,18 @@ def parse_paper(pdf_path: str) -> List[Dict[str, Any]]:
 
 def parse_all_papers(papers_dir: str, subject_code: str) -> List[Dict[str, Any]]:
     """
-    Legacy helper: parse all PDFs in a directory tree.
+    Walk `papers_dir` recursively and parse every PDF found.
+
+    Note: subject_code parameter is accepted but not used internally —
+    parse_paper() extracts the subject code from the filename directly.
+    This function is a convenience batch wrapper around parse_paper().
+
+    Args:
+        papers_dir:   root directory to walk e.g. 'data/papers/qp'
+        subject_code: accepted for API compatibility but not used
+
+    Returns:
+        flat list of all question records extracted from all PDFs found
     """
     all_questions: List[Dict[str, Any]] = []
     for root, _, files in os.walk(papers_dir):
